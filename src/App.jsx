@@ -513,11 +513,25 @@ export default function App() {
 
   const totalExpense = variableExpenseTotal + fixedTotal
 
-  const prevMonthExpense = useMemo(() => {
-    return data.transactions
-      .filter((tx) => tx.date?.startsWith(prevMonthKey))
-      .reduce((sum, tx) => sum + Number(tx.amount || 0), 0)
+  const prevMonthTransactions = useMemo(() => {
+    return data.transactions.filter((tx) => tx.date?.startsWith(prevMonthKey))
   }, [data.transactions, prevMonthKey])
+
+  const prevVariableExpenseTotal = useMemo(() => {
+    return prevMonthTransactions
+      .filter((tx) => !tx.isFixedDeposit)
+      .reduce((sum, tx) => sum + Number(tx.amount || 0), 0)
+  }, [prevMonthTransactions])
+
+  const prevFixedTotal = useMemo(() => {
+    return data.fixedCosts.reduce((sum, cost) => {
+      const adj = data.fixedCostAdjustments?.[prevMonthKey]?.[cost.id]
+      const amount = adj?.amount !== undefined ? Number(adj.amount) : Number(cost.amount || 0)
+      return sum + amount
+    }, 0)
+  }, [data.fixedCosts, data.fixedCostAdjustments, prevMonthKey])
+
+  const prevMonthExpense = prevVariableExpenseTotal + prevFixedTotal
 
   const hasPrevMonthData = useMemo(() => {
     return data.transactions.some((tx) => tx.date?.startsWith(prevMonthKey))
