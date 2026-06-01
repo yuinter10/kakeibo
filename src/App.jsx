@@ -459,6 +459,7 @@ export default function App() {
   const [showFixedAddModal, setShowFixedAddModal] = useState(false)
   const [fixedAddForm, setFixedAddForm] = useState({ fixedCostId: '', amount: '' })
   const [editingFixedAmountInputs, setEditingFixedAmountInputs] = useState({})
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState(null)
 
   const [expenseForm, setExpenseForm] = useState({
     title: '',
@@ -532,6 +533,20 @@ export default function App() {
   }, [data.fixedCosts, data.fixedCostAdjustments, prevMonthKey])
 
   const prevMonthExpense = prevVariableExpenseTotal + prevFixedTotal
+
+  const variableTransactions = useMemo(() => {
+    return monthlyTransactions.filter((tx) => !tx.isFixedDeposit)
+  }, [monthlyTransactions])
+
+  const dailyExpenseMap = useMemo(() => {
+    const map = {}
+    variableTransactions.forEach((tx) => {
+      if (tx.date) {
+        map[tx.date] = (map[tx.date] || 0) + Number(tx.amount || 0)
+      }
+    })
+    return map
+  }, [variableTransactions])
 
   const hasPrevMonthData = useMemo(() => {
     return data.transactions.some((tx) => tx.date?.startsWith(prevMonthKey))
@@ -1344,11 +1359,81 @@ export default function App() {
     </div>
   )
 
-  const reportsTab = () => (
-    <div className="px-6 pt-10">
-      <h1 className="mb-6 text-2xl font-extrabold text-gray-800">レポート</h1>
+  const reportsTab = () => {
+    const firstDayOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay()
+    const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate()
 
-      <div className="rounded-3xl bg-white p-6 shadow-sm">
+    return (
+      <div className="px-6 pt-10">
+        <h1 className="mb-6 text-2xl font-extrabold text-gray-800">レポート</h1>
+
+        <div className="rounded-3xl bg-white p-6 shadow-sm mb-6">
+          <p className="mb-4 text-center text-sm font-bold text-gray-400">支出カレンダー</p>
+
+          <div className="mb-4 grid grid-cols-7 gap-1 text-center text-xs font-bold text-gray-500">
+            {['日', '月', '火', '水', '木', '金', '土'].map((d) => (
+              <div key={d}>{d}</div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 mb-4">
+            {[...Array(firstDayOfMonth)].map((_, i) => (
+              <div key={`empty-${i}`} />
+            ))}
+            {[...Array(daysInMonth)].map((_, i) => {
+              const day = i + 1
+              const dateStr = `${currentMonthKey}-${String(day).padStart(2, '0')}`
+              const amount = dailyExpenseMap[dateStr] || 0
+              const isSelected = selectedCalendarDate === dateStr
+
+              return (
+                <button
+                  key={dateStr}
+                  onClick={() => setSelectedCalendarDate(dateStr)}
+                  className={`flex flex-col items-center justify-center gap-0.5 rounded-xl p-2 text-xs transition-colors ${
+                    isSelected
+                      ? 'bg-indigo-500 text-white shadow-md'
+                      : 'bg-gray-50 text-gray-800 hover:bg-gray-100'
+                  }`}
+                >
+                  <span className="font-bold">{day}</span>
+                  {amount > 0 && (
+                    <span className={`text-[10px] ${isSelected ? 'text-indigo-100' : 'text-indigo-600'}`}>
+                      ¥{amount.toLocaleString()}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          {selectedCalendarDate && (() => {
+            const dayTransactions = variableTransactions.filter((tx) => tx.date === selectedCalendarDate)
+            const [year, month, day] = selectedCalendarDate.split('-')
+
+            return (
+              <div className="border-t border-gray-100 pt-4">
+                <p className="mb-3 text-xs font-bold text-gray-500">
+                  {parseInt(month)}月{parseInt(day)}日の支出
+                </p>
+                {dayTransactions.length ? (
+                  <div className="space-y-2">
+                    {dayTransactions.map((tx) => (
+                      <div key={tx.id} className="flex items-center justify-between text-xs">
+                        <span className="text-gray-700">{tx.title}</span>
+                        <span className="font-bold text-gray-800">¥{tx.amount.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400">この日は支出がありません</p>
+                )}
+              </div>
+            )
+          })()}
+        </div>
+
+        <div className="rounded-3xl bg-white p-6 shadow-sm">
         <p className="mb-6 text-center text-sm font-bold text-gray-400">カテゴリ別支出</p>
 
         <div
@@ -1386,8 +1471,9 @@ export default function App() {
           )}
         </div>
       </div>
-    </div>
-  )
+      </div>
+    )
+  }
 
   const settingsTab = () => (
     <div className="px-6 pt-10">
