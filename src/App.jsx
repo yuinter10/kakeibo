@@ -1127,28 +1127,15 @@ export default function App() {
   const homeTab = () => (
     <div>
       <div className="rounded-b-[36px] bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 px-6 pb-8 pt-10 text-white shadow-lg">
-        <div className="mb-6 flex items-center justify-between">
-          <button
-            onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))}
-            className="rounded-full bg-white/20 p-2"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
+        <div>
+  <h1 className="mb-4 text-center text-2xl font-extrabold">支出状況</h1>
 
-          <div className="text-center">
-            <p className="text-sm text-indigo-100">
-              {viewDate.getFullYear()}年 {viewDate.getMonth() + 1}月
-            </p>
-            <h1 className="text-2xl font-extrabold">支出状況</h1>
-          </div>
-
-          <button
-            onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))}
-            className="rounded-full bg-white/20 p-2"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
-        </div>
+  <MonthNavigator
+    date={viewDate}
+    onChange={setViewDate}
+    variant="dark"
+  />
+</div>
 
         <div className="rounded-3xl border border-white/20 bg-white/15 p-6 shadow-inner backdrop-blur">
           <p className="text-sm text-indigo-100">今月の合計支出</p>
@@ -1578,7 +1565,16 @@ export default function App() {
 
   const reportsTab = () => (
   <div className="px-6 pt-10">
-    <h1 className="mb-6 text-2xl font-extrabold text-gray-800">レポート</h1>
+    <div className="mb-6">
+  <h1 className="mb-4 text-2xl font-extrabold text-gray-800">
+    レポート
+  </h1>
+
+  <MonthNavigator
+    date={viewDate}
+    onChange={setViewDate}
+  />
+</div>
 
     <div className="rounded-3xl bg-white p-6 shadow-sm">
       <p className="mb-6 text-center text-sm font-bold text-gray-400">
