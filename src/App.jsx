@@ -1178,84 +1178,97 @@ export default function App() {
                     </div>
 
                     <div className="mt-3 space-y-2">
-                      <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2">
-                        <p className="w-16 shrink-0 text-xs text-gray-400">今月入金</p>
-                        <input
-                          type="number"
-                          min="0"
-                          step={1000}
-                          placeholder={String(cost.amount || 0)}
-                          value={editingFixedAmountInputs[`${cost.id}-amount`] ?? (adj?.amount !== undefined ? adj.amount : '')}
-                          onChange={(e) => {
-                            setEditingFixedAmountInputs((prev) => ({
-                              ...prev,
-                              [`${cost.id}-amount`]: e.target.value,
-                            }))
-                          }}
-                          onFocus={() => {
-                            setEditingFixedAmountInputs((prev) => ({
-                              ...prev,
-                              [`${cost.id}-amount`]: '',
-                            }))
-                          }}
-                          onBlur={() => {
-                            const inputValue = editingFixedAmountInputs[`${cost.id}-amount`]
-                            if (inputValue !== undefined && inputValue !== '') {
-                              const numVal = Number(inputValue)
-                              if (Number.isFinite(numVal) && numVal >= 0) {
-                                updateAdj({ amount: numVal })
-                              }
-                            }
-                            setEditingFixedAmountInputs((prev) => {
-                              const next = { ...prev }
-                              delete next[`${cost.id}-amount`]
-                              return next
-                            })
-                          }}
-                          className="w-full bg-transparent text-right text-xs font-bold text-gray-700 outline-none placeholder:text-gray-400"
-                        />
-                        <p className="shrink-0 text-xs text-gray-400">円</p>
-                      </div>
+                      {(() => {
+                        const amountInputKey = `${cost.id}-amount`
+                        const isEditingAmount = Object.prototype.hasOwnProperty.call(editingFixedAmountInputs, amountInputKey)
+                        const carryoverInputKey = `${cost.id}-carryover`
+                        const isEditingCarryover = Object.prototype.hasOwnProperty.call(editingFixedAmountInputs, carryoverInputKey)
 
-                      <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2">
-                        <p className="w-16 shrink-0 text-xs text-gray-400">前月残高</p>
-                        <span className="shrink-0 text-xs font-bold text-indigo-400">+</span>
-                        <input
-                          type="number"
-                          min="0"
-                          step={1000}
-                          placeholder="0"
-                          value={editingFixedAmountInputs[`${cost.id}-carryover`] ?? (adj?.carryover || '')}
-                          onChange={(e) => {
-                            setEditingFixedAmountInputs((prev) => ({
-                              ...prev,
-                              [`${cost.id}-carryover`]: e.target.value,
-                            }))
-                          }}
-                          onFocus={() => {
-                            setEditingFixedAmountInputs((prev) => ({
-                              ...prev,
-                              [`${cost.id}-carryover`]: '',
-                            }))
-                          }}
-                          onBlur={() => {
-                            const inputValue = editingFixedAmountInputs[`${cost.id}-carryover`]
-                            if (inputValue !== undefined && inputValue !== '') {
-                              const numVal = Number(inputValue)
-                              if (Number.isFinite(numVal) && numVal >= 0) {
-                                updateAdj({ carryover: numVal })
-                              }
-                            }
-                            setEditingFixedAmountInputs((prev) => {
-                              const next = { ...prev }
-                              delete next[`${cost.id}-carryover`]
-                              return next
-                            })
-                          }}
-                          className="w-full bg-transparent text-right text-xs font-bold text-gray-700 outline-none placeholder:text-gray-300"
-                        />
-                        <p className="shrink-0 text-xs text-gray-400">円</p>
-                      </div>
+                        return (
+                          <>
+                            <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2">
+                              <p className="w-16 shrink-0 text-xs text-gray-400">今月入金</p>
+                              <input
+                                type="number"
+                                min="0"
+                                step={1000}
+                                placeholder={String(cost.amount || 0)}
+                                value={isEditingAmount ? editingFixedAmountInputs[amountInputKey] : (adj?.amount !== undefined ? adj.amount : '')}
+                                onChange={(e) => {
+                                  const nextValue = e.target.value.replace(/[^\d]/g, '')
+                                  setEditingFixedAmountInputs((prev) => ({
+                                    ...prev,
+                                    [amountInputKey]: nextValue,
+                                  }))
+                                }}
+                                onFocus={() => {
+                                  setEditingFixedAmountInputs((prev) => ({
+                                    ...prev,
+                                    [amountInputKey]: '',
+                                  }))
+                                }}
+                                onBlur={() => {
+                                  const inputValue = editingFixedAmountInputs[amountInputKey]
+                                  if (inputValue !== undefined && inputValue !== '') {
+                                    const numVal = Number(inputValue)
+                                    if (Number.isFinite(numVal) && numVal >= 0) {
+                                      updateAdj({ amount: numVal })
+                                    }
+                                  }
+                                  setEditingFixedAmountInputs((prev) => {
+                                    const next = { ...prev }
+                                    delete next[amountInputKey]
+                                    return next
+                                  })
+                                }}
+                                className="w-full bg-transparent text-right text-xs font-bold text-gray-700 outline-none placeholder:text-gray-400"
+                              />
+                              <p className="shrink-0 text-xs text-gray-400">円</p>
+                            </div>
+
+                            <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2">
+                              <p className="w-16 shrink-0 text-xs text-gray-400">前月残高</p>
+                              <span className="shrink-0 text-xs font-bold text-indigo-400">+</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step={1000}
+                                placeholder="0"
+                                value={isEditingCarryover ? editingFixedAmountInputs[carryoverInputKey] : (adj?.carryover || '')}
+                                onChange={(e) => {
+                                  const nextValue = e.target.value.replace(/[^\d]/g, '')
+                                  setEditingFixedAmountInputs((prev) => ({
+                                    ...prev,
+                                    [carryoverInputKey]: nextValue,
+                                  }))
+                                }}
+                                onFocus={() => {
+                                  setEditingFixedAmountInputs((prev) => ({
+                                    ...prev,
+                                    [carryoverInputKey]: '',
+                                  }))
+                                }}
+                                onBlur={() => {
+                                  const inputValue = editingFixedAmountInputs[carryoverInputKey]
+                                  if (inputValue !== undefined && inputValue !== '') {
+                                    const numVal = Number(inputValue)
+                                    if (Number.isFinite(numVal) && numVal >= 0) {
+                                      updateAdj({ carryover: numVal })
+                                    }
+                                  }
+                                  setEditingFixedAmountInputs((prev) => {
+                                    const next = { ...prev }
+                                    delete next[carryoverInputKey]
+                                    return next
+                                  })
+                                }}
+                                className="w-full bg-transparent text-right text-xs font-bold text-gray-700 outline-none placeholder:text-gray-300"
+                              />
+                              <p className="shrink-0 text-xs text-gray-400">円</p>
+                            </div>
+                          </>
+                        )
+                      })()}
                     </div>
                   </>
                 )
