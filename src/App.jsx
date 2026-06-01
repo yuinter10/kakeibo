@@ -50,6 +50,7 @@ import {
 } from 'lucide-react'
 
 const STORAGE_KEY = 'kakeibo-pwa-data'
+const ACTIVE_TAB_KEY = 'kakeibo-pwa-active-tab'
 const SCHEMA_VERSION = 1
 
 const PunchIcon = ({ className }) => (
@@ -427,7 +428,20 @@ const TransactionCard = ({ tx, onEdit, onDelete, customCats = [], showTotal = tr
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('home')
+  const getInitialTab = () => {
+    try {
+      const saved = localStorage.getItem(ACTIVE_TAB_KEY)
+      const validTabs = ['home', 'fixed', 'transactions', 'reports', 'settings']
+      if (saved && validTabs.includes(saved)) {
+        return saved
+      }
+    } catch {
+      // localStorage is not available
+    }
+    return 'home'
+  }
+
+  const [activeTab, setActiveTab] = useState(getInitialTab())
   const [data, setData] = useState(loadData)
   const [showExpenseModal, setShowExpenseModal] = useState(false)
   const [showFixedModal, setShowFixedModal] = useState(false)
@@ -464,6 +478,14 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
   }, [data])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(ACTIVE_TAB_KEY, activeTab)
+    } catch {
+      // localStorage is not available
+    }
+  }, [activeTab])
 
   const currentMonthKey = `${viewDate.getFullYear()}-${String(viewDate.getMonth() + 1).padStart(2, '0')}`
 
@@ -1167,6 +1189,7 @@ export default function App() {
                             const val = e.target.value === '' ? Number(cost.amount || 0) : Number(e.target.value)
                             updateAdj({ amount: val })
                           }}
+                          onFocus={(e) => e.target.select()}
                           className="w-full bg-transparent text-right text-xs font-bold text-gray-700 outline-none placeholder:text-gray-400"
                         />
                         <p className="shrink-0 text-xs text-gray-400">円</p>
@@ -1185,6 +1208,7 @@ export default function App() {
                             const val = e.target.value === '' ? 0 : Number(e.target.value)
                             updateAdj({ carryover: val })
                           }}
+                          onFocus={(e) => e.target.select()}
                           className="w-full bg-transparent text-right text-xs font-bold text-gray-700 outline-none placeholder:text-gray-300"
                         />
                         <p className="shrink-0 text-xs text-gray-400">円</p>
@@ -1859,7 +1883,7 @@ export default function App() {
 
   return (
     <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-gray-50">
-      <div className="flex-1 overflow-y-auto hide-scrollbar pb-28">
+      <div className="flex-1 overflow-y-auto hide-scrollbar scroll-container pb-28">
         {activeTab === 'home' && homeTab()}
         {activeTab === 'fixed' && fixedTab()}
         {activeTab === 'transactions' && transactionsTab()}

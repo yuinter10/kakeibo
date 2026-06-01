@@ -55,3 +55,7 @@ textarea {
 .animate-fade-in {
   animation: fadeIn 0.2s ease-out;
 }
+
+.scroll-container {
+  -webkit-overflow-scrolling: touch;
+}
