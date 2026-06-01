@@ -2077,7 +2077,7 @@ export default function App() {
   const items = [
     { id: 'home', label: 'ホーム', icon: Home },
     { id: 'fixed', label: '固定費', icon: Wallet },
-    { id: 'transactions', label: 'カレンダー', icon: List },
+    { id: 'transactions', label: '記録', icon: List },
     { id: 'reports', label: 'レポート', icon: PieChart },
     { id: 'settings', label: '設定', icon: Settings },
   ]
