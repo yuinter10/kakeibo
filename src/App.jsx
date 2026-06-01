@@ -460,6 +460,7 @@ export default function App() {
   const [fixedAddForm, setFixedAddForm] = useState({ fixedCostId: '', amount: '' })
   const [editingFixedAmountInputs, setEditingFixedAmountInputs] = useState({})
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(null)
+  const [calendarDate, setCalendarDate] = useState(new Date())
 
   const [expenseForm, setExpenseForm] = useState({
     title: '',
@@ -547,6 +548,22 @@ export default function App() {
     })
     return map
   }, [variableTransactions])
+
+  const calendarMonthKey = `${calendarDate.getFullYear()}-${String(calendarDate.getMonth() + 1).padStart(2, '0')}`
+
+  const calendarTransactions = useMemo(() => {
+    return data.transactions.filter((tx) => tx.date?.startsWith(calendarMonthKey) && !tx.isFixedDeposit)
+  }, [data.transactions, calendarMonthKey])
+
+  const calendarDailyExpenseMap = useMemo(() => {
+    const map = {}
+    calendarTransactions.forEach((tx) => {
+      if (tx.date) {
+        map[tx.date] = (map[tx.date] || 0) + Number(tx.amount || 0)
+      }
+    })
+    return map
+  }, [calendarTransactions])
 
   const hasPrevMonthData = useMemo(() => {
     return data.transactions.some((tx) => tx.date?.startsWith(prevMonthKey))
@@ -1360,14 +1377,38 @@ export default function App() {
   )
 
   const reportsTab = () => {
-    const firstDayOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay()
-    const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate()
+    const firstDayOfMonth = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1).getDay()
+    const daysInMonth = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 0).getDate()
 
     return (
       <div className="px-6 pt-10">
         <h1 className="mb-6 text-2xl font-extrabold text-gray-800">レポート</h1>
 
         <div className="rounded-3xl bg-white p-6 shadow-sm mb-6">
+          <div className="mb-4 flex items-center justify-between">
+            <button
+              onClick={() => {
+                setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1))
+                setSelectedCalendarDate(null)
+              }}
+              className="rounded-full bg-gray-100 p-2 text-gray-500"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <p className="text-sm font-extrabold text-gray-700">
+              {calendarDate.getFullYear()}年 {calendarDate.getMonth() + 1}月
+            </p>
+            <button
+              onClick={() => {
+                setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 1))
+                setSelectedCalendarDate(null)
+              }}
+              className="rounded-full bg-gray-100 p-2 text-gray-500"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
           <p className="mb-4 text-center text-sm font-bold text-gray-400">支出カレンダー</p>
 
           <div className="mb-4 grid grid-cols-7 gap-1 text-center text-xs font-bold text-gray-500">
@@ -1382,8 +1423,8 @@ export default function App() {
             ))}
             {[...Array(daysInMonth)].map((_, i) => {
               const day = i + 1
-              const dateStr = `${currentMonthKey}-${String(day).padStart(2, '0')}`
-              const amount = dailyExpenseMap[dateStr] || 0
+              const dateStr = `${calendarMonthKey}-${String(day).padStart(2, '0')}`
+              const amount = calendarDailyExpenseMap[dateStr] || 0
               const isSelected = selectedCalendarDate === dateStr
 
               return (
@@ -1408,7 +1449,7 @@ export default function App() {
           </div>
 
           {selectedCalendarDate && (() => {
-            const dayTransactions = variableTransactions.filter((tx) => tx.date === selectedCalendarDate)
+            const dayTransactions = calendarTransactions.filter((tx) => tx.date === selectedCalendarDate)
             const [year, month, day] = selectedCalendarDate.split('-')
 
             return (
