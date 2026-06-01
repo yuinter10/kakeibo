@@ -1360,14 +1360,125 @@ export default function App() {
     </div>
   )
 
-  const transactionsTab = () => (
+  const transactionsTab = () => {
+  const firstDayOfMonth = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1).getDay()
+  const daysInMonth = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 0).getDate()
+
+  return (
     <div className="px-6 pt-10">
-      <h1 className="mb-6 text-2xl font-extrabold text-gray-800">すべての記録</h1>
+      <h1 className="mb-6 text-2xl font-extrabold text-gray-800">カレンダー</h1>
+
+      <div className="rounded-3xl bg-white p-6 shadow-sm mb-6">
+        <div className="mb-4 flex items-center justify-between">
+          <button
+            onClick={() => {
+              setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1))
+              setSelectedCalendarDate(null)
+            }}
+            className="rounded-full bg-gray-100 p-2 text-gray-500"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+
+          <p className="text-sm font-extrabold text-gray-700">
+            {calendarDate.getFullYear()}年 {calendarDate.getMonth() + 1}月
+          </p>
+
+          <button
+            onClick={() => {
+              setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 1))
+              setSelectedCalendarDate(null)
+            }}
+            className="rounded-full bg-gray-100 p-2 text-gray-500"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+
+        <p className="mb-4 text-center text-sm font-bold text-gray-400">支出カレンダー</p>
+
+        <div className="mb-4 grid grid-cols-7 gap-1 text-center text-xs font-bold text-gray-500">
+          {['日', '月', '火', '水', '木', '金', '土'].map((d) => (
+            <div key={d}>{d}</div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 gap-1 mb-4">
+          {[...Array(firstDayOfMonth)].map((_, i) => (
+            <div key={`empty-${i}`} />
+          ))}
+
+          {[...Array(daysInMonth)].map((_, i) => {
+            const day = i + 1
+            const dateStr = `${calendarMonthKey}-${String(day).padStart(2, '0')}`
+            const amount = calendarDailyExpenseMap[dateStr] || 0
+            const isSelected = selectedCalendarDate === dateStr
+
+            return (
+              <button
+                key={dateStr}
+                onClick={() => setSelectedCalendarDate(dateStr)}
+                className={`flex flex-col items-center justify-center gap-0.5 rounded-xl p-2 text-xs transition-colors ${
+                  isSelected
+                    ? 'bg-indigo-500 text-white shadow-md'
+                    : 'bg-gray-50 text-gray-800 hover:bg-gray-100'
+                }`}
+              >
+                <span className="font-bold">{day}</span>
+
+                {amount > 0 && (
+                  <span className={`text-[10px] ${isSelected ? 'text-indigo-100' : 'text-indigo-600'}`}>
+                    ¥{amount.toLocaleString()}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {selectedCalendarDate && (() => {
+          const dayTransactions = calendarTransactions.filter((tx) => tx.date === selectedCalendarDate)
+          const [, month, day] = selectedCalendarDate.split('-')
+
+          return (
+            <div className="border-t border-gray-100 pt-4">
+              <p className="mb-3 text-xs font-bold text-gray-500">
+                {parseInt(month)}月{parseInt(day)}日の支出
+              </p>
+
+              {dayTransactions.length ? (
+                <div className="space-y-2">
+                  {dayTransactions.map((tx) => (
+                    <div key={tx.id} className="flex items-center justify-between text-xs">
+                      <span className="text-gray-700">{tx.title}</span>
+
+                      <span className="font-bold text-gray-800">
+                        ¥{tx.amount.toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400">この日は支出がありません</p>
+              )}
+            </div>
+          )
+        })()}
+      </div>
+
+      <h2 className="mb-4 text-lg font-extrabold text-gray-800">すべての記録</h2>
 
       <div className="space-y-3">
         {data.transactions.length ? (
           data.transactions.map((tx) => (
-            <TransactionCard key={tx.id} tx={tx} onEdit={openEditTransaction} onDelete={deleteTransaction} customCats={data.customCategories} categoryOverrides={data.categoryOverrides} />
+            <TransactionCard
+              key={tx.id}
+              tx={tx}
+              onEdit={openEditTransaction}
+              onDelete={deleteTransaction}
+              customCats={data.customCategories}
+              categoryOverrides={data.categoryOverrides}
+            />
           ))
         ) : (
           <EmptyCard title="支出がありません" text="＋ボタンから登録できます" />
@@ -1375,146 +1486,79 @@ export default function App() {
       </div>
     </div>
   )
+}
 
-  const reportsTab = () => {
-    const firstDayOfMonth = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1).getDay()
-    const daysInMonth = new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 0).getDate()
+  const reportsTab = () => (
+  <div className="px-6 pt-10">
+    <h1 className="mb-6 text-2xl font-extrabold text-gray-800">レポート</h1>
 
-    return (
-      <div className="px-6 pt-10">
-        <h1 className="mb-6 text-2xl font-extrabold text-gray-800">レポート</h1>
+    <div className="rounded-3xl bg-white p-6 shadow-sm">
+      <p className="mb-6 text-center text-sm font-bold text-gray-400">
+        カテゴリ別支出
+      </p>
 
-        <div className="rounded-3xl bg-white p-6 shadow-sm mb-6">
-          <div className="mb-4 flex items-center justify-between">
-            <button
-              onClick={() => {
-                setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1))
-                setSelectedCalendarDate(null)
-              }}
-              className="rounded-full bg-gray-100 p-2 text-gray-500"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <p className="text-sm font-extrabold text-gray-700">
-              {calendarDate.getFullYear()}年 {calendarDate.getMonth() + 1}月
-            </p>
-            <button
-              onClick={() => {
-                setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 1))
-                setSelectedCalendarDate(null)
-              }}
-              className="rounded-full bg-gray-100 p-2 text-gray-500"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
+      <div
+        className="mx-auto mb-6 flex h-48 w-48 items-center justify-center rounded-full shadow-inner"
+        style={{ background: `conic-gradient(${donutGradient})` }}
+      >
+        <div className="flex h-32 w-32 flex-col items-center justify-center rounded-full bg-white shadow-sm">
+          <p className="text-xs font-bold text-gray-400">合計</p>
 
-          <p className="mb-4 text-center text-sm font-bold text-gray-400">支出カレンダー</p>
+          <p className="text-lg font-extrabold text-gray-800">
+            {formatMoney(totalExpense)}
+          </p>
+        </div>
+      </div>
 
-          <div className="mb-4 grid grid-cols-7 gap-1 text-center text-xs font-bold text-gray-500">
-            {['日', '月', '火', '水', '木', '金', '土'].map((d) => (
-              <div key={d}>{d}</div>
-            ))}
-          </div>
+      <div className="space-y-3">
+        {categoryReport.length ? (
+          categoryReport.map((item) => (
+            <div key={item.category} className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span
+                  className="h-3 w-3 rounded-full"
+                  style={{
+                    background:
+                      resolveCat(
+                        item.category,
+                        data.customCategories,
+                        data.categoryOverrides
+                      ).chartColor,
+                  }}
+                />
 
-          <div className="grid grid-cols-7 gap-1 mb-4">
-            {[...Array(firstDayOfMonth)].map((_, i) => (
-              <div key={`empty-${i}`} />
-            ))}
-            {[...Array(daysInMonth)].map((_, i) => {
-              const day = i + 1
-              const dateStr = `${calendarMonthKey}-${String(day).padStart(2, '0')}`
-              const amount = calendarDailyExpenseMap[dateStr] || 0
-              const isSelected = selectedCalendarDate === dateStr
+                <span className="text-sm font-bold text-gray-700">
+                  {
+                    resolveCat(
+                      item.category,
+                      data.customCategories,
+                      data.categoryOverrides
+                    ).name
+                  }
+                </span>
+              </div>
 
-              return (
-                <button
-                  key={dateStr}
-                  onClick={() => setSelectedCalendarDate(dateStr)}
-                  className={`flex flex-col items-center justify-center gap-0.5 rounded-xl p-2 text-xs transition-colors ${
-                    isSelected
-                      ? 'bg-indigo-500 text-white shadow-md'
-                      : 'bg-gray-50 text-gray-800 hover:bg-gray-100'
-                  }`}
-                >
-                  <span className="font-bold">{day}</span>
-                  {amount > 0 && (
-                    <span className={`text-[10px] ${isSelected ? 'text-indigo-100' : 'text-indigo-600'}`}>
-                      ¥{amount.toLocaleString()}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-
-          {selectedCalendarDate && (() => {
-            const dayTransactions = calendarTransactions.filter((tx) => tx.date === selectedCalendarDate)
-            const [year, month, day] = selectedCalendarDate.split('-')
-
-            return (
-              <div className="border-t border-gray-100 pt-4">
-                <p className="mb-3 text-xs font-bold text-gray-500">
-                  {parseInt(month)}月{parseInt(day)}日の支出
+              <div className="text-right">
+                <p className="text-sm font-extrabold text-gray-800">
+                  {formatMoney(item.amount)}
                 </p>
-                {dayTransactions.length ? (
-                  <div className="space-y-2">
-                    {dayTransactions.map((tx) => (
-                      <div key={tx.id} className="flex items-center justify-between text-xs">
-                        <span className="text-gray-700">{tx.title}</span>
-                        <span className="font-bold text-gray-800">¥{tx.amount.toLocaleString()}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-400">この日は支出がありません</p>
-                )}
+
+                <p className="text-xs text-gray-400">
+                  {item.percent}%
+                </p>
               </div>
-            )
-          })()}
-        </div>
-
-        <div className="rounded-3xl bg-white p-6 shadow-sm">
-        <p className="mb-6 text-center text-sm font-bold text-gray-400">カテゴリ別支出</p>
-
-        <div
-          className="mx-auto mb-6 flex h-48 w-48 items-center justify-center rounded-full shadow-inner"
-          style={{ background: `conic-gradient(${donutGradient})` }}
-        >
-          <div className="flex h-32 w-32 flex-col items-center justify-center rounded-full bg-white shadow-sm">
-            <p className="text-xs font-bold text-gray-400">合計</p>
-            <p className="text-lg font-extrabold text-gray-800">{formatMoney(totalExpense)}</p>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          {categoryReport.length ? (
-            categoryReport.map((item) => (
-              <div key={item.category} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="h-3 w-3 rounded-full"
-                    style={{ background: resolveCat(item.category, data.customCategories, data.categoryOverrides).chartColor }}
-                  />
-                  <span className="text-sm font-bold text-gray-700">
-                    {resolveCat(item.category, data.customCategories, data.categoryOverrides).name}
-                  </span>
-                </div>
-
-                <div className="text-right">
-                  <p className="text-sm font-extrabold text-gray-800">{formatMoney(item.amount)}</p>
-                  <p className="text-xs text-gray-400">{item.percent}%</p>
-                </div>
-              </div>
-            ))
-          ) : (
-            <p className="text-center text-sm text-gray-400">今月の支出データがありません</p>
-          )}
-        </div>
+            </div>
+          ))
+        ) : (
+          <p className="text-center text-sm text-gray-400">
+            今月の支出データがありません
+          </p>
+        )}
       </div>
-      </div>
-    )
-  }
+    </div>
+  </div>
+)
+  
 
   const settingsTab = () => (
     <div className="px-6 pt-10">
@@ -2033,7 +2077,7 @@ export default function App() {
   const items = [
     { id: 'home', label: 'ホーム', icon: Home },
     { id: 'fixed', label: '固定費', icon: Wallet },
-    { id: 'transactions', label: '記録', icon: List },
+    { id: 'transactions', label: 'カレンダー', icon: List },
     { id: 'reports', label: 'レポート', icon: PieChart },
     { id: 'settings', label: '設定', icon: Settings },
   ]
