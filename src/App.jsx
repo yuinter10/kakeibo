@@ -428,6 +428,128 @@ const TransactionCard = ({ tx, onEdit, onDelete, customCats = [], showTotal = tr
 }
 
 export default function App() {
+    const MIN_YEAR = 2026
+  const MIN_MONTH = 5
+
+  const clampDate = (date) => {
+    const minDate = new Date(MIN_YEAR, MIN_MONTH - 1, 1)
+
+    if (date < minDate) {
+      return minDate
+    }
+
+    return date
+  }
+
+  const getYearOptions = () => {
+    const currentYear = new Date().getFullYear()
+    const years = []
+
+    for (let y = MIN_YEAR; y <= currentYear + 3; y++) {
+      years.push(y)
+    }
+
+    return years
+  }
+
+  const getMonthOptions = (year) => {
+    const startMonth = year === MIN_YEAR ? MIN_MONTH : 1
+
+    return Array.from({ length: 12 - startMonth + 1 }, (_, i) => startMonth + i)
+  }
+
+  const MonthNavigator = ({ date, onChange, variant = 'light' }) => {
+    const year = date.getFullYear()
+    const month = date.getMonth() + 1
+
+    const isMinMonth = year === MIN_YEAR && month === MIN_MONTH
+
+    const moveMonth = (diff) => {
+      onChange(clampDate(new Date(year, date.getMonth() + diff, 1)))
+    }
+
+    const changeYear = (nextYear) => {
+      const safeMonth =
+        nextYear === MIN_YEAR && month < MIN_MONTH
+          ? MIN_MONTH
+          : month
+
+      onChange(clampDate(new Date(nextYear, safeMonth - 1, 1)))
+    }
+
+    const changeMonth = (nextMonth) => {
+      onChange(clampDate(new Date(year, nextMonth - 1, 1)))
+    }
+
+    const isDark = variant === 'dark'
+
+    return (
+      <div
+        className={`mb-6 flex items-center justify-between rounded-2xl px-4 py-3 shadow-sm ${
+          isDark
+            ? 'bg-white/15 text-white'
+            : 'bg-white text-gray-700'
+        }`}
+      >
+        <button
+          onClick={() => moveMonth(-1)}
+          disabled={isMinMonth}
+          className={`rounded-full p-2 disabled:opacity-30 ${
+            isDark
+              ? 'bg-white/20 text-white'
+              : 'bg-gray-100 text-gray-500'
+          }`}
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+
+        <div className="flex items-center gap-2">
+          <select
+            value={year}
+            onChange={(e) => changeYear(Number(e.target.value))}
+            className={`rounded-full px-3 py-2 text-sm font-extrabold outline-none ${
+              isDark
+                ? 'bg-white/20 text-white'
+                : 'bg-gray-100 text-gray-700'
+            }`}
+          >
+            {getYearOptions().map((y) => (
+              <option key={y} value={y}>
+                {y}年
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={month}
+            onChange={(e) => changeMonth(Number(e.target.value))}
+            className={`rounded-full px-3 py-2 text-sm font-extrabold outline-none ${
+              isDark
+                ? 'bg-white/20 text-white'
+                : 'bg-gray-100 text-gray-700'
+            }`}
+          >
+            {getMonthOptions(year).map((m) => (
+              <option key={m} value={m}>
+                {m}月
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <button
+          onClick={() => moveMonth(1)}
+          className={`rounded-full p-2 ${
+            isDark
+              ? 'bg-white/20 text-white'
+              : 'bg-gray-100 text-gray-500'
+          }`}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+    )
+  }
   const getInitialTab = () => {
     try {
       const saved = localStorage.getItem(ACTIVE_TAB_KEY)
@@ -1140,23 +1262,7 @@ export default function App() {
         </button>
       </div>
 
-      <div className="mb-6 flex items-center justify-between rounded-2xl bg-white px-4 py-3 shadow-sm">
-        <button
-          onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1))}
-          className="rounded-full bg-gray-100 p-2 text-gray-500"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <p className="text-sm font-extrabold text-gray-700">
-          {viewDate.getFullYear()}年 {viewDate.getMonth() + 1}月
-        </p>
-        <button
-          onClick={() => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1))}
-          className="rounded-full bg-gray-100 p-2 text-gray-500"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      </div>
+      <MonthNavigator date={viewDate} onChange={setViewDate} />
 
       <div className="mb-6 rounded-3xl bg-white p-6 text-center shadow-sm">
         <p className="text-sm font-bold text-gray-400">今月の固定費入金合計</p>
@@ -1369,31 +1475,13 @@ export default function App() {
       <h1 className="mb-6 text-2xl font-extrabold text-gray-800">カレンダー</h1>
 
       <div className="rounded-3xl bg-white p-6 shadow-sm mb-6">
-        <div className="mb-4 flex items-center justify-between">
-          <button
-            onClick={() => {
-              setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1, 1))
-              setSelectedCalendarDate(null)
-            }}
-            className="rounded-full bg-gray-100 p-2 text-gray-500"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-
-          <p className="text-sm font-extrabold text-gray-700">
-            {calendarDate.getFullYear()}年 {calendarDate.getMonth() + 1}月
-          </p>
-
-          <button
-            onClick={() => {
-              setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1, 1))
-              setSelectedCalendarDate(null)
-            }}
-            className="rounded-full bg-gray-100 p-2 text-gray-500"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
+        <MonthNavigator
+  date={calendarDate}
+  onChange={(nextDate) => {
+    setCalendarDate(nextDate)
+    setSelectedCalendarDate(null)
+  }}
+/>
 
         <p className="mb-4 text-center text-sm font-bold text-gray-400">支出カレンダー</p>
 
