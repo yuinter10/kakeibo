@@ -687,9 +687,7 @@ export default function App() {
     return map
   }, [calendarTransactions])
 
-  const hasPrevMonthData = useMemo(() => {
-    return data.transactions.some((tx) => tx.date?.startsWith(prevMonthKey))
-  }, [data.transactions, prevMonthKey])
+  const hasPrevMonthData = prevMonthExpense > 0 || data.fixedCosts.length > 0
 
   const allCategories = useMemo(
     () => [
