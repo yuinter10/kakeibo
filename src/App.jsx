@@ -458,6 +458,7 @@ export default function App() {
   const [showActionPicker, setShowActionPicker] = useState(false)
   const [showFixedAddModal, setShowFixedAddModal] = useState(false)
   const [fixedAddForm, setFixedAddForm] = useState({ fixedCostId: '', amount: '' })
+  const [editingAmountId, setEditingAmountId] = useState(null)
 
   const [expenseForm, setExpenseForm] = useState({
     title: '',
@@ -1184,12 +1185,13 @@ export default function App() {
                           min="0"
                           step={1000}
                           placeholder={String(cost.amount || 0)}
-                          value={adj?.amount !== undefined ? adj.amount : ''}
+                          value={editingAmountId === `${cost.id}-amount` ? '' : (adj?.amount !== undefined ? adj.amount : '')}
                           onChange={(e) => {
                             const val = e.target.value === '' ? Number(cost.amount || 0) : Number(e.target.value)
                             updateAdj({ amount: val })
                           }}
-                          onFocus={(e) => e.target.select()}
+                          onFocus={() => setEditingAmountId(`${cost.id}-amount`)}
+                          onBlur={() => setEditingAmountId(null)}
                           className="w-full bg-transparent text-right text-xs font-bold text-gray-700 outline-none placeholder:text-gray-400"
                         />
                         <p className="shrink-0 text-xs text-gray-400">円</p>
@@ -1203,12 +1205,13 @@ export default function App() {
                           min="0"
                           step={1000}
                           placeholder="0"
-                          value={adj?.carryover || ''}
+                          value={editingAmountId === `${cost.id}-carryover` ? '' : (adj?.carryover || '')}
                           onChange={(e) => {
                             const val = e.target.value === '' ? 0 : Number(e.target.value)
                             updateAdj({ carryover: val })
                           }}
-                          onFocus={(e) => e.target.select()}
+                          onFocus={() => setEditingAmountId(`${cost.id}-carryover`)}
+                          onBlur={() => setEditingAmountId(null)}
                           className="w-full bg-transparent text-right text-xs font-bold text-gray-700 outline-none placeholder:text-gray-300"
                         />
                         <p className="shrink-0 text-xs text-gray-400">円</p>
