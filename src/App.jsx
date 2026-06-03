@@ -1199,7 +1199,7 @@ export default function App() {
               }))
             }
             placeholder="今月の目標を入力"
-          className="w-full resize-none rounded-none border-0 bg-transparent px-0 py-1 text-[11px] font-medium leading-relaxed text-gray-500 outline-none placeholder:text-[11px] placeholder:font-medium placeholder:text-gray-300 focus:ring-0"
+          className="w-full resize-none border-0 bg-transparent px-0 py-1 !text-[11px] !font-medium leading-relaxed text-gray-700 outline-none placeholder:!text-[11px] placeholder:font-medium placeholder:text-gray-300 focus:ring-0"
 style={{
   minHeight: '56px',
   lineHeight: '1.5',
