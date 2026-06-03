@@ -53,6 +53,14 @@ const STORAGE_KEY = 'kakeibo-pwa-data'
 const ACTIVE_TAB_KEY = 'kakeibo-pwa-active-tab'
 const SCHEMA_VERSION = 1
 
+const DEFAULT_EXPENSE_STATUS_RULES = [
+  { min: '0', max: '100000', label: 'いい感じ' },
+  { min: '100001', max: '150000', label: '順調' },
+  { min: '150001', max: '200000', label: '普通' },
+  { min: '200001', max: '250000', label: '注意' },
+  { min: '250001', max: '', label: '使いすぎ' },
+]
+
 const PunchIcon = ({ className }) => (
   <svg
     className={className}
@@ -279,7 +287,12 @@ function loadData() {
       transactions: parsed.transactions ?? initialData.transactions,
       fixedCosts: parsed.fixedCosts ?? initialData.fixedCosts,
       monthlyBudget: parsed.monthlyBudget ?? initialData.monthlyBudget,
-      appSettings: parsed.appSettings ?? initialData.appSettings,
+      appSettings: {
+  ...initialData.appSettings,
+  ...(parsed.appSettings ?? {}),
+  expenseStatusRules:
+    parsed.appSettings?.expenseStatusRules ?? DEFAULT_EXPENSE_STATUS_RULES,
+},
       customCategories: parsed.customCategories ?? [],
       monthlyGoals: parsed.monthlyGoals ?? {},
       fixedCostAdjustments: parsed.fixedCostAdjustments ?? {},
@@ -712,6 +725,46 @@ export default function App() {
   const remaining = data.monthlyBudget - totalExpense
   const progressPercent = Math.min((totalExpense / data.monthlyBudget) * 100, 100)
 
+const expenseStatusRules =
+  data.appSettings?.expenseStatusRules ?? DEFAULT_EXPENSE_STATUS_RULES
+
+const currentExpenseStatus = useMemo(() => {
+  const matched = expenseStatusRules.find((rule) => {
+    const label = String(rule.label || '').trim()
+    if (!label) return false
+
+    const min = Number(rule.min || 0)
+    const max = rule.max === '' || rule.max === undefined ? Infinity : Number(rule.max)
+
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return false
+
+    return totalExpense >= min && totalExpense <= max
+  })
+
+  return matched?.label?.trim() || ''
+}, [expenseStatusRules, totalExpense])
+
+const updateExpenseStatusRule = (index, fields) => {
+  setData((prev) => {
+    const currentRules =
+      prev.appSettings?.expenseStatusRules ?? DEFAULT_EXPENSE_STATUS_RULES
+
+    const nextRules = [...currentRules]
+    nextRules[index] = {
+      ...(nextRules[index] || { min: '', max: '', label: '' }),
+      ...fields,
+    }
+
+    return {
+      ...prev,
+      appSettings: {
+        ...(prev.appSettings || {}),
+        expenseStatusRules: nextRules,
+      },
+    }
+  })
+}
+
   const categoryReport = useMemo(() => {
     const map = {}
 
@@ -1137,7 +1190,15 @@ export default function App() {
 </div>
 
         <div className="rounded-3xl border border-white/20 bg-white/15 p-6 shadow-inner backdrop-blur">
-          <p className="text-sm text-indigo-100">今月の合計支出</p>
+          <div className="flex items-center justify-between gap-3">
+  <p className="text-sm text-indigo-100">今月の合計支出</p>
+
+  {currentExpenseStatus && (
+    <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-extrabold text-white">
+      {currentExpenseStatus}
+    </span>
+  )}
+</div>
           <p className="mt-2 text-4xl font-extrabold tracking-tight">
             {formatMoney(totalExpense)}
           </p>
@@ -1673,6 +1734,57 @@ style={{
           className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 text-lg font-bold outline-none focus:ring-2 focus:ring-indigo-500"
         />
       </div>
+
+      <div className="mt-6 rounded-3xl bg-white p-5 shadow-sm">
+  <h2 className="mb-2 font-extrabold text-gray-800">支出ステータス設定</h2>
+
+  <p className="mb-4 text-xs leading-5 text-gray-400">
+    今月の合計支出に応じて、ホーム画面右上に表示する文字を設定できます。
+    空欄の行は無視されます。
+  </p>
+
+  <div className="space-y-3">
+    {expenseStatusRules.map((rule, index) => (
+      <div key={index} className="rounded-2xl bg-gray-50 p-3">
+        <div className="mb-2 flex items-center gap-2">
+          <input
+            type="number"
+            value={rule.min ?? ''}
+            onChange={(e) =>
+              updateExpenseStatusRule(index, { min: e.target.value })
+            }
+            placeholder="0"
+            className="w-24 rounded-xl border border-gray-100 bg-white px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-400"
+          />
+
+          <span className="text-xs font-bold text-gray-400">〜</span>
+
+          <input
+            type="number"
+            value={rule.max ?? ''}
+            onChange={(e) =>
+              updateExpenseStatusRule(index, { max: e.target.value })
+            }
+            placeholder="以上"
+            className="w-24 rounded-xl border border-gray-100 bg-white px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-400"
+          />
+
+          <span className="text-xs text-gray-400">円</span>
+        </div>
+
+        <input
+          type="text"
+          value={rule.label ?? ''}
+          onChange={(e) =>
+            updateExpenseStatusRule(index, { label: e.target.value })
+          }
+          placeholder="例：いい感じ"
+          className="w-full rounded-xl border border-gray-100 bg-white px-3 py-2 text-sm font-bold text-gray-700 outline-none placeholder:text-gray-300 focus:ring-2 focus:ring-indigo-400"
+        />
+      </div>
+    ))}
+  </div>
+</div>
 
       <div className="mt-6 rounded-3xl bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
