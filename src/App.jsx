@@ -583,6 +583,7 @@ export default function App() {
   const [editingFixedAmountInputs, setEditingFixedAmountInputs] = useState({})
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(null)
   const [calendarDate, setCalendarDate] = useState(new Date())
+  const [visibleTransactionCount, setVisibleTransactionCount] = useState(50)
 
   const [expenseForm, setExpenseForm] = useState({
     title: '',
@@ -1198,11 +1199,11 @@ export default function App() {
               }))
             }
             placeholder="今月の目標を入力"
-            className="w-full resize-none rounded-2xl border border-gray-100 bg-indigo-50/40 px-2 py-2 text-xs font-normal text-gray-700 outline-none placeholder:text-xs placeholder:font-normal placeholder:text-gray-300 focus:ring-2 focus:ring-indigo-400"
-            style={{
-              minHeight: '64px',
-              lineHeight: '1.4',
-            }}
+            className="w-full resize-none rounded-none border-0 bg-transparent px-0 py-1 text-sm font-bold leading-relaxed text-gray-700 outline-none placeholder:text-sm placeholder:font-bold placeholder:text-gray-300 focus:ring-0"
+style={{
+  minHeight: '56px',
+  lineHeight: '1.5',
+}}
           />
         </div>
       </div>
@@ -1543,19 +1544,30 @@ export default function App() {
 
       <div className="space-y-3">
         {data.transactions.length ? (
-          data.transactions.map((tx) => (
-            <TransactionCard
-              key={tx.id}
-              tx={tx}
-              onEdit={openEditTransaction}
-              onDelete={deleteTransaction}
-              customCats={data.customCategories}
-              categoryOverrides={data.categoryOverrides}
-            />
-          ))
-        ) : (
-          <EmptyCard title="支出がありません" text="＋ボタンから登録できます" />
-        )}
+  <>
+    {data.transactions.slice(0, visibleTransactionCount).map((tx) => (
+      <TransactionCard
+        key={tx.id}
+        tx={tx}
+        onEdit={openEditTransaction}
+        onDelete={deleteTransaction}
+        customCats={data.customCategories}
+        categoryOverrides={data.categoryOverrides}
+      />
+    ))}
+
+    {visibleTransactionCount < data.transactions.length && (
+      <button
+        onClick={() => setVisibleTransactionCount((prev) => prev + 50)}
+        className="mt-4 w-full rounded-2xl bg-white py-4 text-sm font-extrabold text-indigo-500 shadow-sm"
+      >
+        もっと見る（残り{data.transactions.length - visibleTransactionCount}件）
+      </button>
+    )}
+  </>
+) : (
+  <EmptyCard title="支出がありません" text="＋ボタンから登録できます" />
+)}
       </div>
     </div>
   )
