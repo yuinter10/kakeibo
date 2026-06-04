@@ -811,7 +811,9 @@ return {
     return map
   }, [calendarTransactions])
 
-  const hasPrevMonthData = prevMonthExpense > 0 || data.fixedCosts.length > 0
+  const hasPrevMonthData =
+  prevMonthExpense > 0 ||
+  prevMonthlyFixedCosts.length > 0
 
   const allCategories = useMemo(
     () => [
@@ -1546,7 +1548,10 @@ style={{
           {formatMoney(fixedTotal)}
         </p>
         {(() => {
-          const baseTotal = data.fixedCosts.reduce((sum, cost) => sum + Number(cost.amount || 0), 0)
+          const baseTotal = currentMonthlyFixedCosts.reduce(
+  (sum, cost) => sum + Number(cost.amount || 0),
+  0
+)
           return baseTotal !== fixedTotal ? (
             <p className="mt-1 text-xs text-gray-400">基本固定費合計 {formatMoney(baseTotal)}</p>
           ) : null
