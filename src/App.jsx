@@ -633,6 +633,37 @@ export default function App() {
   const prevMonthDate = new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1)
   const prevMonthKey = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}`
 
+const normalizeFixedCostForMonth = (cost) => ({
+  id: cost.id,
+  name: cost.name,
+  amount: Number(cost.amount || 0),
+  category: cost.category || 'housing',
+  day: Number(cost.day || 1),
+  carryover: 0,
+  totalAvailable: Number(cost.amount || 0),
+  createdAt: cost.createdAt || new Date().toISOString(),
+  updatedAt: cost.updatedAt || new Date().toISOString(),
+})
+
+const getMonthlyFixedCosts = (monthKey) => {
+  const monthlyCosts = data.monthlyFixedCosts?.[monthKey]
+
+  if (Array.isArray(monthlyCosts)) {
+    return monthlyCosts
+  }
+
+  return data.fixedCosts.map(normalizeFixedCostForMonth)
+}
+
+const currentMonthlyFixedCosts = useMemo(() => {
+  return getMonthlyFixedCosts(currentMonthKey)
+}, [data.monthlyFixedCosts, data.fixedCosts, currentMonthKey])
+
+const prevMonthlyFixedCosts = useMemo(() => {
+  return getMonthlyFixedCosts(prevMonthKey)
+}, [data.monthlyFixedCosts, data.fixedCosts, prevMonthKey])
+
+
   const monthlyTransactions = useMemo(() => {
     return data.transactions.filter((tx) => tx.date?.startsWith(currentMonthKey))
   }, [data.transactions, currentMonthKey])
@@ -1371,10 +1402,8 @@ style={{
       </div>
 
       <div className="space-y-3">
-        {data.fixedCosts.filter((cost) => !cost.deletedFromMonth || currentMonthKey < cost.deletedFromMonth).length ? (
-  data.fixedCosts
-    .filter((cost) => !cost.deletedFromMonth || currentMonthKey < cost.deletedFromMonth)
-    .map((cost, index) => (
+        {currentMonthlyFixedCosts.length ? (
+  currentMonthlyFixedCosts.map((cost, index) => (
             <div key={cost.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
               {(() => {
                 const adj = data.fixedCostAdjustments?.[currentMonthKey]?.[cost.id]
@@ -1533,7 +1562,7 @@ style={{
                 <button
                   onClick={() => moveFixedCost(index, 1)}
                   className="flex-1 rounded-xl bg-gray-50 py-2 text-gray-500 disabled:opacity-30"
-                  disabled={index === data.fixedCosts.length - 1}
+                  disabled={index === currentMonthlyFixedCosts.length - 1}
                 >
                   <ArrowDown className="mx-auto h-4 w-4" />
                 </button>
