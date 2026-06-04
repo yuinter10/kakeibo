@@ -2425,7 +2425,10 @@ style={{
         <button
           onClick={() => {
             setShowActionPicker(false)
-            setFixedAddForm({ fixedCostId: data.fixedCosts[0]?.id || '', amount: '' })
+            setFixedAddForm({
+  fixedCostId: currentMonthlyFixedCosts[0]?.id || '',
+  amount: '',
+})
             setShowFixedAddModal(true)
           }}
           className="flex w-full items-center gap-4 rounded-2xl bg-purple-50 p-5 text-left"
@@ -2461,7 +2464,7 @@ style={{
               onChange={(e) => setFixedAddForm((prev) => ({ ...prev, fixedCostId: e.target.value }))}
               className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-indigo-500"
             >
-              {data.fixedCosts.map((cost) => (
+              {currentMonthlyFixedCosts.map((cost) => (
                 <option key={cost.id} value={cost.id}>
                   {cost.name}（基本 {formatMoney(cost.amount)}）
                 </option>
@@ -2483,9 +2486,11 @@ style={{
           {fixedAddForm.fixedCostId && (() => {
             const cost = data.fixedCosts.find((c) => c.id === fixedAddForm.fixedCostId)
             if (!cost) return null
-            const adj = data.fixedCostAdjustments?.[currentMonthKey]?.[cost.id]
-            const current = adj?.amount !== undefined ? Number(adj.amount) : Number(cost.amount || 0)
-            const add = Number(fixedAddForm.amount) || 0
+            const current =
+  Number(cost.amount || 0) +
+  Number(cost.monthlyDeposit || 0)
+
+const add = Number(fixedAddForm.amount) || 0
             return (
               <p className="mb-4 rounded-xl bg-purple-50 px-4 py-2 text-xs font-bold text-purple-600">
                 現在 {formatMoney(current)} → 追加後 {formatMoney(current + add)}
