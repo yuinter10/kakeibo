@@ -1216,6 +1216,24 @@ const copyPreviousMonthFixedCosts = () => {
   })
 }
 
+const clearCurrentMonthFixedCosts = () => {
+  if (
+    !confirm(
+      'この月の固定費をすべて削除しますか？\n他の月の固定費には影響しません。'
+    )
+  ) {
+    return
+  }
+
+  setData((prev) => ({
+    ...prev,
+    monthlyFixedCosts: {
+      ...(prev.monthlyFixedCosts || {}),
+      [currentMonthKey]: [],
+    },
+  }))
+}
+
   const deleteFixedCost = (id) => {
   if (!confirm('この固定費をこの月以降から削除しますか？\n過去月の固定費データは残ります。')) return
 
@@ -1534,13 +1552,6 @@ style={{
 
       <MonthNavigator date={viewDate} onChange={setViewDate} />
 
-      <button
-  onClick={copyPreviousMonthFixedCosts}
-  className="mb-4 w-full rounded-2xl bg-indigo-500 py-3 text-sm font-extrabold text-white shadow-sm"
->
-  前月の固定費をコピー
-  </button>
-
 
       <div className="mb-6 rounded-3xl bg-white p-6 text-center shadow-sm">
         <p className="text-sm font-bold text-gray-400">今月の固定費入金合計</p>
@@ -1731,9 +1742,25 @@ style={{
               </div>
             </div>
           ))
-        ) : (
+                ) : (
           <EmptyCard title="固定費がありません" text="右上の＋から登録できます" />
         )}
+      </div>
+
+      <div className="mt-6 space-y-3">
+        <button
+          onClick={copyPreviousMonthFixedCosts}
+          className="w-full rounded-2xl bg-indigo-500 py-3 text-sm font-extrabold text-white shadow-sm"
+        >
+          前月の固定費をコピー
+        </button>
+
+        <button
+          onClick={clearCurrentMonthFixedCosts}
+          className="w-full rounded-2xl bg-red-50 py-3 text-sm font-extrabold text-red-500 shadow-sm"
+        >
+          この月の固定費をすべて削除
+        </button>
       </div>
     </div>
   )
