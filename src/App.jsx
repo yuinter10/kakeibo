@@ -728,13 +728,11 @@ const updateMonthlyFixedCost = (monthKey, costId, fields) => {
       .reduce((sum, tx) => sum + Number(tx.amount || 0), 0)
   }, [prevMonthTransactions])
 
-  const prevFixedTotal = prevMonthlyFixedCosts.reduce((sum, cost) => {
-    return data.fixedCosts.reduce((sum, cost) => {
-      const adj = data.fixedCostAdjustments?.[prevMonthKey]?.[cost.id]
-      const amount = adj?.amount !== undefined ? Number(adj.amount) : Number(cost.amount || 0)
-      return sum + amount
-    }, 0)
-  }, [data.fixedCosts, data.fixedCostAdjustments, prevMonthKey])
+  const prevFixedTotal = useMemo(() => {
+  return prevMonthlyFixedCosts.reduce((sum, cost) => {
+    return sum + Number(cost.amount || 0)
+  }, 0)
+}, [prevMonthlyFixedCosts])
 
   const prevMonthExpense = prevVariableExpenseTotal + prevFixedTotal
 
