@@ -1188,7 +1188,7 @@ const copyPreviousMonthFixedCosts = () => {
   setData((prev) => {
     const prevList =
       prev.monthlyFixedCosts?.[prevMonthKey] ||
-      buildMonthlyFixedCosts(prev, prevMonthKey)
+      prev.fixedCosts.map(normalizeFixedCostForMonth)
 
     const nextList = prevList.map((cost) => {
       const amount = Number(cost.amount || 0)
@@ -1196,7 +1196,9 @@ const copyPreviousMonthFixedCosts = () => {
 
       return {
         ...cost,
+        amount,
         monthlyDeposit: 0,
+        carryover,
         totalAvailable: amount + carryover,
         updatedAt: new Date().toISOString(),
       }
@@ -1231,33 +1233,6 @@ const copyPreviousMonthFixedCosts = () => {
         )
       }
     })
-
-    return {
-      ...prev,
-      monthlyFixedCosts: nextMonthlyFixedCosts,
-    }
-  })
-}
-
-const resetMonthlyFixedCostsFromJuly2026 = () => {
-  if (
-    !confirm(
-      '2026年7月以降の月別固定費データをリセットしますか？\n2026年6月以前は残ります。'
-    )
-  ) {
-    return
-  }
-
-  setData((prev) => {
-    const nextMonthlyFixedCosts = {}
-
-    Object.entries(prev.monthlyFixedCosts || {}).forEach(
-      ([monthKey, list]) => {
-        if (monthKey < '2026-07') {
-          nextMonthlyFixedCosts[monthKey] = list
-        }
-      }
-    )
 
     return {
       ...prev,
@@ -1425,12 +1400,6 @@ const resetMonthlyFixedCostsFromJuly2026 = () => {
     variant="dark"
   />
 
-<button
-  onClick={copyPreviousMonthFixedCosts}
-  className="mb-4 w-full rounded-2xl bg-white py-3 text-sm font-extrabold text-indigo-500 shadow-sm"
->
-  前月の固定費をコピー
-</button>
 
 </div>
 
@@ -1557,11 +1526,12 @@ style={{
       <MonthNavigator date={viewDate} onChange={setViewDate} />
 
       <button
-  onClick={resetMonthlyFixedCostsFromJuly2026}
-  className="mb-4 w-full rounded-2xl bg-red-50 py-3 text-sm font-extrabold text-red-500 shadow-sm"
+  onClick={copyPreviousMonthFixedCosts}
+  className="mb-4 w-full rounded-2xl bg-indigo-500 py-3 text-sm font-extrabold text-white shadow-sm"
 >
-  2026年7月以降の固定費データをリセット
-</button>
+  前月の固定費をコピー
+  </button>
+
 
       <div className="mb-6 rounded-3xl bg-white p-6 text-center shadow-sm">
         <p className="text-sm font-bold text-gray-400">今月の固定費入金合計</p>
