@@ -1076,13 +1076,21 @@ const updateExpenseStatusRule = (index, fields) => {
   }
 
   const deleteFixedCost = (id) => {
-    if (!confirm('この固定費を削除しますか？')) return
+  if (!confirm('この固定費を今月以降停止しますか？\n過去月の固定費データは残ります。')) return
 
-    setData((prev) => ({
-      ...prev,
-      fixedCosts: prev.fixedCosts.filter((cost) => cost.id !== id),
-    }))
-  }
+  setData((prev) => ({
+    ...prev,
+    fixedCosts: prev.fixedCosts.map((cost) =>
+      cost.id === id
+        ? {
+            ...cost,
+            deletedFromMonth: currentMonthKey,
+            updatedAt: new Date().toISOString(),
+          }
+        : cost
+    ),
+  }))
+}
 
   const moveFixedCost = (index, direction) => {
     setData((prev) => {
@@ -1361,8 +1369,10 @@ style={{
       </div>
 
       <div className="space-y-3">
-        {data.fixedCosts.length ? (
-          data.fixedCosts.map((cost, index) => (
+        {data.fixedCosts.filter((cost) => !cost.deletedFromMonth || currentMonthKey < cost.deletedFromMonth).length ? (
+  data.fixedCosts
+    .filter((cost) => !cost.deletedFromMonth || currentMonthKey < cost.deletedFromMonth)
+    .map((cost, index) => (
             <div key={cost.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
               {(() => {
                 const adj = data.fixedCostAdjustments?.[currentMonthKey]?.[cost.id]
