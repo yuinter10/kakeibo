@@ -267,7 +267,8 @@ const initialData = {
   customCategories: [],
   monthlyGoals: {},
   fixedCostAdjustments: {},
-  categoryOverrides: {},
+monthlyFixedCosts: {},
+categoryOverrides: {},
 }
 
 function loadData() {
@@ -296,7 +297,8 @@ function loadData() {
       customCategories: parsed.customCategories ?? [],
       monthlyGoals: parsed.monthlyGoals ?? {},
       fixedCostAdjustments: parsed.fixedCostAdjustments ?? {},
-      categoryOverrides: parsed.categoryOverrides ?? {},
+monthlyFixedCosts: parsed.monthlyFixedCosts ?? {},
+categoryOverrides: parsed.categoryOverrides ?? {},
     }
   } catch {
     return initialData
