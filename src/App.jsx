@@ -639,20 +639,37 @@ const normalizeFixedCostForMonth = (cost) => ({
   amount: Number(cost.amount || 0),
   category: cost.category || 'housing',
   day: Number(cost.day || 1),
-  carryover: 0,
-  totalAvailable: Number(cost.amount || 0),
+  carryover: Number(cost.carryover || 0),
+  totalAvailable:
+    Number(cost.amount || 0) + Number(cost.carryover || 0),
   createdAt: cost.createdAt || new Date().toISOString(),
   updatedAt: cost.updatedAt || new Date().toISOString(),
 })
 
-const getMonthlyFixedCosts = (monthKey) => {
-  const monthlyCosts = data.monthlyFixedCosts?.[monthKey]
+const buildMonthlyFixedCosts = (sourceData, monthKey) => {
+  const existing = sourceData.monthlyFixedCosts?.[monthKey]
 
-  if (Array.isArray(monthlyCosts)) {
-    return monthlyCosts
+  if (Array.isArray(existing)) {
+    return existing
   }
 
-  return data.fixedCosts.map(normalizeFixedCostForMonth)
+  const latestPreviousMonthKey = Object.keys(sourceData.monthlyFixedCosts || {})
+    .filter((key) => key < monthKey && Array.isArray(sourceData.monthlyFixedCosts?.[key]))
+    .sort()
+    .reverse()[0]
+
+  if (latestPreviousMonthKey) {
+    return sourceData.monthlyFixedCosts[latestPreviousMonthKey].map((cost) => ({
+      ...cost,
+      updatedAt: new Date().toISOString(),
+    }))
+  }
+
+  return sourceData.fixedCosts.map(normalizeFixedCostForMonth)
+}
+
+const getMonthlyFixedCosts = (monthKey) => {
+  return buildMonthlyFixedCosts(data, monthKey)
 }
 
 const currentMonthlyFixedCosts = useMemo(() => {
@@ -662,6 +679,22 @@ const currentMonthlyFixedCosts = useMemo(() => {
 const prevMonthlyFixedCosts = useMemo(() => {
   return getMonthlyFixedCosts(prevMonthKey)
 }, [data.monthlyFixedCosts, data.fixedCosts, prevMonthKey])
+
+useEffect(() => {
+  setData((prev) => {
+    if (Array.isArray(prev.monthlyFixedCosts?.[currentMonthKey])) {
+      return prev
+    }
+
+    return {
+      ...prev,
+      monthlyFixedCosts: {
+        ...(prev.monthlyFixedCosts || {}),
+        [currentMonthKey]: buildMonthlyFixedCosts(prev, currentMonthKey),
+      },
+    }
+  })
+}, [currentMonthKey])
 
 const updateMonthlyFixedCost = (monthKey, costId, fields) => {
   setData((prev) => {
@@ -1074,42 +1107,63 @@ const updateExpenseStatusRule = (index, fields) => {
     category: fixedForm.category,
     day: Math.round(day),
   })
+
 } else {
+  const next = {
+    id: generateId(),
+    name: fixedForm.name.trim(),
+    amount: Math.round(amount),
+    category: fixedForm.category,
+    day: Math.round(day),
+    carryover: 0,
+    totalAvailable: Math.round(amount),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }
 
-      const next = {
-        id: generateId(),
-        name: fixedForm.name.trim(),
-        amount: Math.round(amount),
-        category: fixedForm.category,
-        day: Math.round(day),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
+  setData((prev) => {
+    const currentList =
+      prev.monthlyFixedCosts?.[currentMonthKey] ||
+      getMonthlyFixedCosts(currentMonthKey)
 
-      setData((prev) => ({
-        ...prev,
-        fixedCosts: [...prev.fixedCosts, next],
-      }))
+    return {
+      ...prev,
+      monthlyFixedCosts: {
+        ...(prev.monthlyFixedCosts || {}),
+        [currentMonthKey]: [...currentList, next],
+      },
     }
+  })
+}
 
     setShowFixedModal(false)
   }
 
   const deleteFixedCost = (id) => {
-  if (!confirm('この固定費を今月以降停止しますか？\n過去月の固定費データは残ります。')) return
+  if (!confirm('この固定費をこの月以降から削除しますか？\n過去月の固定費データは残ります。')) return
 
-  setData((prev) => ({
-    ...prev,
-    fixedCosts: prev.fixedCosts.map((cost) =>
-      cost.id === id
-        ? {
-            ...cost,
-            deletedFromMonth: currentMonthKey,
-            updatedAt: new Date().toISOString(),
-          }
-        : cost
-    ),
-  }))
+  setData((prev) => {
+    const nextMonthlyFixedCosts = { ...(prev.monthlyFixedCosts || {}) }
+
+    const currentList =
+      nextMonthlyFixedCosts[currentMonthKey] ||
+      buildMonthlyFixedCosts(prev, currentMonthKey)
+
+    nextMonthlyFixedCosts[currentMonthKey] = currentList.filter((cost) => cost.id !== id)
+
+    Object.keys(nextMonthlyFixedCosts).forEach((monthKey) => {
+      if (monthKey >= currentMonthKey) {
+        nextMonthlyFixedCosts[monthKey] = (nextMonthlyFixedCosts[monthKey] || []).filter(
+          (cost) => cost.id !== id
+        )
+      }
+    })
+
+    return {
+      ...prev,
+      monthlyFixedCosts: nextMonthlyFixedCosts,
+    }
+  })
 }
 
   const moveFixedCost = (index, direction) => {
@@ -1393,11 +1447,10 @@ style={{
   currentMonthlyFixedCosts.map((cost, index) => (
             <div key={cost.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
               {(() => {
-                const adj = data.fixedCostAdjustments?.[currentMonthKey]?.[cost.id]
-                const amount = adj?.amount !== undefined ? Number(adj.amount) : Number(cost.amount || 0)
-                const carryover = Number(adj?.carryover || 0)
-                const totalAvailable = amount + carryover
-                const updateAdj = (fields) => {
+                const amount = Number(cost.amount || 0)
+const carryover = Number(cost.carryover || 0)
+const totalAvailable = amount + carryover
+const updateAdj = (fields) => {
   updateMonthlyFixedCost(currentMonthKey, cost.id, fields)
 }
                 return (
@@ -1438,7 +1491,7 @@ style={{
                                 min="0"
                                 step={1000}
                                 placeholder={String(cost.amount || 0)}
-                                value={isEditingAmount ? editingFixedAmountInputs[amountInputKey] : (adj?.amount !== undefined ? adj.amount : '')}
+                                value={isEditingAmount ? editingFixedAmountInputs[amountInputKey] : amount}
                                 onChange={(e) => {
                                   const nextValue = e.target.value.replace(/[^\d]/g, '')
                                   setEditingFixedAmountInputs((prev) => ({
@@ -1479,7 +1532,7 @@ style={{
                                 min="0"
                                 step={1000}
                                 placeholder="0"
-                                value={isEditingCarryover ? editingFixedAmountInputs[carryoverInputKey] : (adj?.carryover || '')}
+                                value={isEditingCarryover ? editingFixedAmountInputs[carryoverInputKey] : (carryover || '')}
                                 onChange={(e) => {
                                   const nextValue = e.target.value.replace(/[^\d]/g, '')
                                   setEditingFixedAmountInputs((prev) => ({
