@@ -1131,16 +1131,17 @@ currentMonthlyFixedCosts.forEach((cost) => {
 
 } else {
   const next = {
-    id: generateId(),
-    name: fixedForm.name.trim(),
-    amount: Math.round(amount),
-    category: fixedForm.category,
-    day: Math.round(day),
-    carryover: 0,
-    totalAvailable: Math.round(amount),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }
+  id: generateId(),
+  name: fixedForm.name.trim(),
+  amount: Math.round(amount),
+  monthlyDeposit: 0,
+  category: fixedForm.category,
+  day: Math.round(day),
+  carryover: 0,
+  totalAvailable: Math.round(amount),
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+}
 
   setData((prev) => {
     const currentList =
