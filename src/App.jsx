@@ -633,18 +633,24 @@ export default function App() {
   const prevMonthDate = new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1)
   const prevMonthKey = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, '0')}`
 
-const normalizeFixedCostForMonth = (cost) => ({
-  id: cost.id,
-  name: cost.name,
-  amount: Number(cost.amount || 0),
-  category: cost.category || 'housing',
-  day: Number(cost.day || 1),
-  carryover: Number(cost.carryover || 0),
-  totalAvailable:
-    Number(cost.amount || 0) + Number(cost.carryover || 0),
-  createdAt: cost.createdAt || new Date().toISOString(),
-  updatedAt: cost.updatedAt || new Date().toISOString(),
-})
+const normalizeFixedCostForMonth = (cost) => {
+  const amount = Number(cost.amount || 0)
+  const monthlyDeposit = Number(cost.monthlyDeposit || 0)
+  const carryover = Number(cost.carryover || 0)
+
+  return {
+    id: cost.id,
+    name: cost.name,
+    amount,
+    monthlyDeposit,
+    carryover,
+    totalAvailable: amount + monthlyDeposit + carryover,
+    category: cost.category || 'housing',
+    day: Number(cost.day || 1),
+    createdAt: cost.createdAt || new Date().toISOString(),
+    updatedAt: cost.updatedAt || new Date().toISOString(),
+  }
+}
 
 const buildMonthlyFixedCosts = (sourceData, monthKey) => {
   const existing = sourceData.monthlyFixedCosts?.[monthKey]
@@ -660,9 +666,10 @@ const buildMonthlyFixedCosts = (sourceData, monthKey) => {
 
   if (latestPreviousMonthKey) {
     return sourceData.monthlyFixedCosts[latestPreviousMonthKey].map((cost) => ({
-      ...cost,
-      updatedAt: new Date().toISOString(),
-    }))
+  ...cost,
+  monthlyDeposit: 0,
+  updatedAt: new Date().toISOString(),
+}))
   }
 
   return sourceData.fixedCosts.map(normalizeFixedCostForMonth)
@@ -712,14 +719,17 @@ const updateMonthlyFixedCost = (monthKey, costId, fields) => {
       }
 
       const nextAmount = Number(nextCost.amount || 0)
-      const nextCarryover = Number(nextCost.carryover || 0)
+const nextMonthlyDeposit = Number(nextCost.monthlyDeposit || 0)
+const nextCarryover = Number(nextCost.carryover || 0)
 
-      return {
-        ...nextCost,
-        amount: nextAmount,
-        carryover: nextCarryover,
-        totalAvailable: nextAmount + nextCarryover,
-      }
+return {
+  ...nextCost,
+  amount: nextAmount,
+  monthlyDeposit: nextMonthlyDeposit,
+  carryover: nextCarryover,
+  totalAvailable:
+    nextAmount + nextMonthlyDeposit + nextCarryover,
+}
     })
 
     return {
@@ -745,7 +755,11 @@ const updateMonthlyFixedCost = (monthKey, costId, fields) => {
 
   const fixedTotal = useMemo(() => {
   return currentMonthlyFixedCosts.reduce((sum, cost) => {
-    return sum + Number(cost.amount || 0)
+    return (
+      sum +
+      Number(cost.amount || 0) +
+      Number(cost.monthlyDeposit || 0)
+    )
   }, 0)
 }, [currentMonthlyFixedCosts])
 
@@ -763,7 +777,11 @@ const updateMonthlyFixedCost = (monthKey, costId, fields) => {
 
   const prevFixedTotal = useMemo(() => {
   return prevMonthlyFixedCosts.reduce((sum, cost) => {
-    return sum + Number(cost.amount || 0)
+    return (
+      sum +
+      Number(cost.amount || 0) +
+      Number(cost.monthlyDeposit || 0)
+    )
   }, 0)
 }, [prevMonthlyFixedCosts])
 
@@ -874,11 +892,14 @@ const updateExpenseStatusRule = (index, fields) => {
     })
 
   // 固定費を加算
-  currentMonthlyFixedCosts.forEach((cost) => {
-    const amount = Number(cost.amount || 0)
-    const key = cost.category || 'food'
-    map[key] = (map[key] || 0) + amount
-  })
+currentMonthlyFixedCosts.forEach((cost) => {
+  const amount =
+    Number(cost.amount || 0) +
+    Number(cost.monthlyDeposit || 0)
+
+  const key = cost.category || 'food'
+  map[key] = (map[key] || 0) + amount
+})
 
   return Object.entries(map)
     .map(([category, amount]) => ({
@@ -1447,13 +1468,19 @@ style={{
   currentMonthlyFixedCosts.map((cost, index) => (
             <div key={cost.id} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
               {(() => {
-                const amount = Number(cost.amount || 0)
-const carryover = Number(cost.carryover || 0)
-const totalAvailable = amount + carryover
-const updateAdj = (fields) => {
-  updateMonthlyFixedCost(currentMonthKey, cost.id, fields)
-}
-                return (
+              
+  const amount = Number(cost.amount || 0)
+  const monthlyDeposit = Number(cost.monthlyDeposit || 0)
+  const carryover = Number(cost.carryover || 0)
+
+  const totalAvailable =
+    amount + monthlyDeposit + carryover
+
+  const updateAdj = (fields) => {
+    updateMonthlyFixedCost(currentMonthKey, cost.id, fields)
+  }
+
+  return (
                   <>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-center gap-3">
@@ -1491,7 +1518,11 @@ const updateAdj = (fields) => {
                                 min="0"
                                 step={1000}
                                 placeholder={String(cost.amount || 0)}
-                                value={isEditingAmount ? editingFixedAmountInputs[amountInputKey] : amount}
+                                value={
+  isEditingAmount
+    ? editingFixedAmountInputs[amountInputKey]
+    : (monthlyDeposit || '')
+}
                                 onChange={(e) => {
                                   const nextValue = e.target.value.replace(/[^\d]/g, '')
                                   setEditingFixedAmountInputs((prev) => ({
@@ -1510,7 +1541,7 @@ const updateAdj = (fields) => {
                                   if (inputValue !== undefined && inputValue !== '') {
                                     const numVal = Number(inputValue)
                                     if (Number.isFinite(numVal) && numVal >= 0) {
-                                      updateAdj({ amount: numVal })
+                                      updateAdj({ monthlyDeposit: numVal })
                                     }
                                   }
                                   setEditingFixedAmountInputs((prev) => {
