@@ -1242,21 +1242,28 @@ const copyPreviousMonthFixedCosts = () => {
 }
 
   const moveFixedCost = (index, direction) => {
-    setData((prev) => {
-      const next = [...prev.fixedCosts]
-      const target = index + direction
+  setData((prev) => {
+    const currentList =
+      prev.monthlyFixedCosts?.[currentMonthKey] ||
+      buildMonthlyFixedCosts(prev, currentMonthKey)
 
-      if (target < 0 || target >= next.length) return prev
+    const nextList = [...currentList]
+    const target = index + direction
 
-      const [item] = next.splice(index, 1)
-      next.splice(target, 0, item)
+    if (target < 0 || target >= nextList.length) return prev
 
-      return {
-        ...prev,
-        fixedCosts: next,
-      }
-    })
-  }
+    const [item] = nextList.splice(index, 1)
+    nextList.splice(target, 0, item)
+
+    return {
+      ...prev,
+      monthlyFixedCosts: {
+        ...(prev.monthlyFixedCosts || {}),
+        [currentMonthKey]: nextList,
+      },
+    }
+  })
+}
 
 
 
