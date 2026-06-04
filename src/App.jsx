@@ -54,11 +54,11 @@ const ACTIVE_TAB_KEY = 'kakeibo-pwa-active-tab'
 const SCHEMA_VERSION = 1
 
 const DEFAULT_EXPENSE_STATUS_RULES = [
-  { min: '0', max: '100000', label: 'いい感じ' },
-  { min: '100001', max: '150000', label: '順調' },
-  { min: '150001', max: '200000', label: '普通' },
-  { min: '200001', max: '250000', label: '注意' },
-  { min: '250001', max: '', label: '使いすぎ' },
+  { sign: '-', amount: '10000', label: 'かなり節約できてる' },
+  { sign: '+', amount: '0', label: 'いい感じ' },
+  { sign: '+', amount: '30000', label: '注意' },
+  { sign: '+', amount: '50000', label: '使いすぎ' },
+  { sign: '+', amount: '80000', label: '危険' },
 ]
 
 const PunchIcon = ({ className }) => (
@@ -837,24 +837,40 @@ return {
   const remaining = data.monthlyBudget - totalExpense
   const progressPercent = Math.min((totalExpense / data.monthlyBudget) * 100, 100)
 
+const currentBaseFixedTotal = useMemo(() => {
+  return currentMonthlyFixedCosts.reduce(
+    (sum, cost) => sum + Number(cost.amount || 0),
+    0
+  )
+}, [currentMonthlyFixedCosts])
+
+const expenseStatusAmount = totalExpense - currentBaseFixedTotal
+
 const expenseStatusRules =
   data.appSettings?.expenseStatusRules ?? DEFAULT_EXPENSE_STATUS_RULES
 
 const currentExpenseStatus = useMemo(() => {
-  const matched = expenseStatusRules.find((rule) => {
-    const label = String(rule.label || '').trim()
-    if (!label) return false
+  const sortedRules = [...expenseStatusRules]
+    .filter((rule) => String(rule.label || '').trim())
+    .map((rule) => {
+      const sign = rule.sign === '-' ? '-' : '+'
+      const amount = Number(rule.amount || 0)
+      const threshold = sign === '-' ? -amount : amount
 
-    const min = Number(rule.min || 0)
-    const max = rule.max === '' || rule.max === undefined ? Infinity : Number(rule.max)
+      return {
+        ...rule,
+        threshold,
+      }
+    })
+    .filter((rule) => Number.isFinite(rule.threshold))
+    .sort((a, b) => a.threshold - b.threshold)
 
-    if (!Number.isFinite(min) || !Number.isFinite(max)) return false
-
-    return totalExpense >= min && totalExpense <= max
-  })
+  const matched = sortedRules
+    .filter((rule) => expenseStatusAmount >= rule.threshold)
+    .at(-1)
 
   return matched?.label?.trim() || ''
-}, [expenseStatusRules, totalExpense])
+}, [expenseStatusRules, expenseStatusAmount])
 
 const updateExpenseStatusRule = (index, fields) => {
   setData((prev) => {
@@ -1998,42 +2014,41 @@ style={{
   <div className="space-y-3">
     {expenseStatusRules.map((rule, index) => (
       <div key={index} className="rounded-2xl bg-gray-50 p-3">
-        <div className="mb-2 flex items-center gap-2">
-          <input
-            type="number"
-            value={rule.min ?? ''}
-            onChange={(e) =>
-              updateExpenseStatusRule(index, { min: e.target.value })
-            }
-            placeholder="0"
-            className="w-24 rounded-xl border border-gray-100 bg-white px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-400"
-          />
+  <div className="mb-2 flex items-center gap-2">
+    <select
+      value={rule.sign ?? '+'}
+      onChange={(e) =>
+        updateExpenseStatusRule(index, { sign: e.target.value })
+      }
+      className="w-16 rounded-xl border border-gray-100 bg-white px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-400"
+    >
+      <option value="+">＋</option>
+      <option value="-">−</option>
+    </select>
 
-          <span className="text-xs font-bold text-gray-400">〜</span>
+    <input
+      type="number"
+      value={rule.amount ?? ''}
+      onChange={(e) =>
+        updateExpenseStatusRule(index, { amount: e.target.value })
+      }
+      placeholder="30000"
+      className="w-28 rounded-xl border border-gray-100 bg-white px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-400"
+    />
 
-          <input
-            type="number"
-            value={rule.max ?? ''}
-            onChange={(e) =>
-              updateExpenseStatusRule(index, { max: e.target.value })
-            }
-            placeholder="以上"
-            className="w-24 rounded-xl border border-gray-100 bg-white px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-400"
-          />
+    <span className="text-xs text-gray-400">円</span>
+  </div>
 
-          <span className="text-xs text-gray-400">円</span>
-        </div>
-
-        <input
-          type="text"
-          value={rule.label ?? ''}
-          onChange={(e) =>
-            updateExpenseStatusRule(index, { label: e.target.value })
-          }
-          placeholder="例：いい感じ"
-          className="w-full rounded-xl border border-gray-100 bg-white px-3 py-2 text-sm font-bold text-gray-700 outline-none placeholder:text-gray-300 focus:ring-2 focus:ring-indigo-400"
-        />
-      </div>
+  <input
+    type="text"
+    value={rule.label ?? ''}
+    onChange={(e) =>
+      updateExpenseStatusRule(index, { label: e.target.value })
+    }
+    placeholder="例：注意"
+    className="w-full rounded-xl border border-gray-100 bg-white px-3 py-2 text-sm font-bold text-gray-700 outline-none placeholder:text-gray-300 focus:ring-2 focus:ring-indigo-400"
+  />
+</div>
     ))}
   </div>
 </div>
