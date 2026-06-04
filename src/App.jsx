@@ -711,12 +711,10 @@ const updateMonthlyFixedCost = (monthKey, costId, fields) => {
   }, [monthlyTransactions])
 
   const fixedTotal = useMemo(() => {
-    return data.fixedCosts.reduce((sum, cost) => {
-      const adj = data.fixedCostAdjustments?.[currentMonthKey]?.[cost.id]
-      const amount = adj?.amount !== undefined ? Number(adj.amount) : Number(cost.amount || 0)
-      return sum + amount
-    }, 0)
-  }, [data.fixedCosts, data.fixedCostAdjustments, currentMonthKey])
+  return currentMonthlyFixedCosts.reduce((sum, cost) => {
+    return sum + Number(cost.amount || 0)
+  }, 0)
+}, [currentMonthlyFixedCosts])
 
   const totalExpense = variableExpenseTotal + fixedTotal
 
@@ -730,7 +728,7 @@ const updateMonthlyFixedCost = (monthKey, costId, fields) => {
       .reduce((sum, tx) => sum + Number(tx.amount || 0), 0)
   }, [prevMonthTransactions])
 
-  const prevFixedTotal = useMemo(() => {
+  const prevFixedTotal = prevMonthlyFixedCosts.reduce((sum, cost) => {
     return data.fixedCosts.reduce((sum, cost) => {
       const adj = data.fixedCostAdjustments?.[prevMonthKey]?.[cost.id]
       const amount = adj?.amount !== undefined ? Number(adj.amount) : Number(cost.amount || 0)
@@ -835,31 +833,30 @@ const updateExpenseStatusRule = (index, fields) => {
 }
 
   const categoryReport = useMemo(() => {
-    const map = {}
+  const map = {}
 
-    monthlyTransactions
-      .filter((tx) => !tx.isFixedDeposit)
-      .forEach((tx) => {
-        const key = tx.category || 'food'
-        map[key] = (map[key] || 0) + Number(tx.amount || 0)
-      })
-
-    // 固定費を加算
-    data.fixedCosts.forEach((cost) => {
-      const adj = data.fixedCostAdjustments?.[currentMonthKey]?.[cost.id]
-      const amount = adj?.amount !== undefined ? Number(adj.amount) : Number(cost.amount || 0)
-      const key = cost.category || 'food'
-      map[key] = (map[key] || 0) + amount
+  monthlyTransactions
+    .filter((tx) => !tx.isFixedDeposit)
+    .forEach((tx) => {
+      const key = tx.category || 'food'
+      map[key] = (map[key] || 0) + Number(tx.amount || 0)
     })
 
-    return Object.entries(map)
-      .map(([category, amount]) => ({
-        category,
-        amount,
-        percent: totalExpense ? Math.round((amount / totalExpense) * 100) : 0,
-      }))
-      .sort((a, b) => b.amount - a.amount)
-  }, [monthlyTransactions, data.fixedCosts, data.fixedCostAdjustments, currentMonthKey, totalExpense])
+  // 固定費を加算
+  currentMonthlyFixedCosts.forEach((cost) => {
+    const amount = Number(cost.amount || 0)
+    const key = cost.category || 'food'
+    map[key] = (map[key] || 0) + amount
+  })
+
+  return Object.entries(map)
+    .map(([category, amount]) => ({
+      category,
+      amount,
+      percent: totalExpense ? Math.round((amount / totalExpense) * 100) : 0,
+    }))
+    .sort((a, b) => b.amount - a.amount)
+}, [monthlyTransactions, currentMonthlyFixedCosts, totalExpense])
 
   const donutGradient = useMemo(() => {
     if (!categoryReport.length) return '#e5e7eb 0% 100%'
