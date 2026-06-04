@@ -659,20 +659,14 @@ const buildMonthlyFixedCosts = (sourceData, monthKey) => {
     return existing
   }
 
-  const latestPreviousMonthKey = Object.keys(sourceData.monthlyFixedCosts || {})
-    .filter((key) => key < monthKey && Array.isArray(sourceData.monthlyFixedCosts?.[key]))
-    .sort()
-    .reverse()[0]
+  const hasAnyMonthlyFixedCosts =
+    Object.keys(sourceData.monthlyFixedCosts || {}).length > 0
 
-  if (latestPreviousMonthKey) {
-    return sourceData.monthlyFixedCosts[latestPreviousMonthKey].map((cost) => ({
-  ...cost,
-  monthlyDeposit: 0,
-  updatedAt: new Date().toISOString(),
-}))
+  if (!hasAnyMonthlyFixedCosts) {
+    return sourceData.fixedCosts.map(normalizeFixedCostForMonth)
   }
 
-  return sourceData.fixedCosts.map(normalizeFixedCostForMonth)
+  return []
 }
 
 const getMonthlyFixedCosts = (monthKey) => {
@@ -996,29 +990,39 @@ currentMonthlyFixedCosts.forEach((cost) => {
         }
 
         const monthKey = editingTransaction.date.slice(0, 7)
-        const diff = newAmount - Number(editingTransaction.amount)
-        const adj = prev.fixedCostAdjustments?.[monthKey]?.[fixedCostId] || {}
-        const cost = prev.fixedCosts.find((c) => c.id === fixedCostId)
-        const currentAdj = adj.amount !== undefined ? Number(adj.amount) : Number(cost?.amount || 0)
-        const currentCarryover = Number(adj.carryover || 0)
-        const nextAmount = Math.max(0, currentAdj + diff)
+const diff = newAmount - Number(editingTransaction.amount || 0)
 
-        return {
-          ...prev,
-          transactions: updatedTransactions,
-          fixedCostAdjustments: {
-            ...(prev.fixedCostAdjustments || {}),
-            [monthKey]: {
-              ...(prev.fixedCostAdjustments?.[monthKey] || {}),
-              [fixedCostId]: {
-                ...adj,
-                amount: nextAmount,
-                carryover: currentCarryover,
-                totalAvailable: nextAmount + currentCarryover,
-              },
-            },
-          },
-        }
+const currentList =
+  prev.monthlyFixedCosts?.[monthKey] ||
+  buildMonthlyFixedCosts(prev, monthKey)
+
+const nextList = currentList.map((cost) => {
+  if (cost.id !== fixedCostId) return cost
+
+  const nextAmount = Number(cost.amount || 0)
+  const nextMonthlyDeposit = Math.max(
+    0,
+    Number(cost.monthlyDeposit || 0) + diff
+  )
+  const nextCarryover = Number(cost.carryover || 0)
+
+  return {
+    ...cost,
+    monthlyDeposit: nextMonthlyDeposit,
+    totalAvailable:
+      nextAmount + nextMonthlyDeposit + nextCarryover,
+    updatedAt: now,
+  }
+})
+
+return {
+  ...prev,
+  transactions: updatedTransactions,
+  monthlyFixedCosts: {
+    ...(prev.monthlyFixedCosts || {}),
+    [monthKey]: nextList,
+  },
+}
       })
     } else {
       const newTx = {
@@ -1044,44 +1048,55 @@ currentMonthlyFixedCosts.forEach((cost) => {
   }
 
   const deleteTransaction = (id) => {
-    if (!confirm('この支出を削除しますか？')) return
+  if (!confirm('この支出を削除しますか？')) return
 
-    setData((prev) => {
-      const tx = prev.transactions.find((t) => t.id === id)
+  setData((prev) => {
+    const tx = prev.transactions.find((t) => t.id === id)
 
-      if (!tx?.isFixedDeposit || !tx.fixedCostId) {
-        return {
-          ...prev,
-          transactions: prev.transactions.filter((t) => t.id !== id),
-        }
-      }
-
-      const monthKey = tx.date.slice(0, 7)
-      const fixedCostId = tx.fixedCostId
-      const adj = prev.fixedCostAdjustments?.[monthKey]?.[fixedCostId] || {}
-      const cost = prev.fixedCosts.find((c) => c.id === fixedCostId)
-      const currentAmount = adj.amount !== undefined ? Number(adj.amount) : Number(cost?.amount || 0)
-      const currentCarryover = Number(adj.carryover || 0)
-      const nextAmount = Math.max(0, currentAmount - Number(tx.amount))
-
+    if (!tx?.isFixedDeposit || !tx.fixedCostId) {
       return {
         ...prev,
         transactions: prev.transactions.filter((t) => t.id !== id),
-        fixedCostAdjustments: {
-          ...(prev.fixedCostAdjustments || {}),
-          [monthKey]: {
-            ...(prev.fixedCostAdjustments?.[monthKey] || {}),
-            [fixedCostId]: {
-              ...adj,
-              amount: nextAmount,
-              carryover: currentCarryover,
-              totalAvailable: nextAmount + currentCarryover,
-            },
-          },
-        },
+      }
+    }
+
+    const monthKey = tx.date.slice(0, 7)
+    const fixedCostId = tx.fixedCostId
+    const deletedAmount = Number(tx.amount || 0)
+
+    const currentList =
+      prev.monthlyFixedCosts?.[monthKey] ||
+      buildMonthlyFixedCosts(prev, monthKey)
+
+    const nextList = currentList.map((cost) => {
+      if (cost.id !== fixedCostId) return cost
+
+      const nextAmount = Number(cost.amount || 0)
+      const nextMonthlyDeposit = Math.max(
+        0,
+        Number(cost.monthlyDeposit || 0) - deletedAmount
+      )
+      const nextCarryover = Number(cost.carryover || 0)
+
+      return {
+        ...cost,
+        monthlyDeposit: nextMonthlyDeposit,
+        totalAvailable:
+          nextAmount + nextMonthlyDeposit + nextCarryover,
+        updatedAt: new Date().toISOString(),
       }
     })
-  }
+
+    return {
+      ...prev,
+      transactions: prev.transactions.filter((t) => t.id !== id),
+      monthlyFixedCosts: {
+        ...(prev.monthlyFixedCosts || {}),
+        [monthKey]: nextList,
+      },
+    }
+  })
+}
 
   const openAddFixedCost = () => {
     setEditingFixedCost(null)
@@ -1161,6 +1176,42 @@ currentMonthlyFixedCosts.forEach((cost) => {
     setShowFixedModal(false)
   }
 
+const copyPreviousMonthFixedCosts = () => {
+  if (
+    !confirm(
+      '前月の固定費をこの月にコピーしますか？\n現在のこの月の固定費は上書きされます。'
+    )
+  ) {
+    return
+  }
+
+  setData((prev) => {
+    const prevList =
+      prev.monthlyFixedCosts?.[prevMonthKey] ||
+      buildMonthlyFixedCosts(prev, prevMonthKey)
+
+    const nextList = prevList.map((cost) => {
+      const amount = Number(cost.amount || 0)
+      const carryover = Number(cost.carryover || 0)
+
+      return {
+        ...cost,
+        monthlyDeposit: 0,
+        totalAvailable: amount + carryover,
+        updatedAt: new Date().toISOString(),
+      }
+    })
+
+    return {
+      ...prev,
+      monthlyFixedCosts: {
+        ...(prev.monthlyFixedCosts || {}),
+        [currentMonthKey]: nextList,
+      },
+    }
+  })
+}
+
   const deleteFixedCost = (id) => {
   if (!confirm('この固定費をこの月以降から削除しますか？\n過去月の固定費データは残ります。')) return
 
@@ -1180,6 +1231,33 @@ currentMonthlyFixedCosts.forEach((cost) => {
         )
       }
     })
+
+    return {
+      ...prev,
+      monthlyFixedCosts: nextMonthlyFixedCosts,
+    }
+  })
+}
+
+const resetMonthlyFixedCostsFromJuly2026 = () => {
+  if (
+    !confirm(
+      '2026年7月以降の月別固定費データをリセットしますか？\n2026年6月以前は残ります。'
+    )
+  ) {
+    return
+  }
+
+  setData((prev) => {
+    const nextMonthlyFixedCosts = {}
+
+    Object.entries(prev.monthlyFixedCosts || {}).forEach(
+      ([monthKey, list]) => {
+        if (monthKey < '2026-07') {
+          nextMonthlyFixedCosts[monthKey] = list
+        }
+      }
+    )
 
     return {
       ...prev,
@@ -1208,51 +1286,70 @@ currentMonthlyFixedCosts.forEach((cost) => {
 
 
   const saveFixedAdd = () => {
-    const amount = Number(fixedAddForm.amount)
-    if (!fixedAddForm.fixedCostId || !Number.isFinite(amount) || amount <= 0) {
-      alert('固定費と金額を入力してください')
-      return
-    }
-    const cost = data.fixedCosts.find((c) => c.id === fixedAddForm.fixedCostId)
-    if (!cost) return
-    const now = new Date().toISOString()
-    const newTx = {
-      id: generateId(),
-      title: cost.name,
-      amount: Math.round(amount),
-      category: cost.category,
-      isSpecial: true,
-      isFixedDeposit: true,
-      fixedCostId: cost.id,
-      date: todayString(),
-      createdAt: now,
-      updatedAt: now,
-    }
-    setData((prev) => {
-      const adj = prev.fixedCostAdjustments?.[currentMonthKey]?.[cost.id] || {}
-      const currentAmount = adj.amount !== undefined ? Number(adj.amount) : Number(cost.amount || 0)
-      const currentCarryover = Number(adj.carryover || 0)
-      const nextAmount = currentAmount + amount
+  const amount = Number(fixedAddForm.amount)
+
+  if (!fixedAddForm.fixedCostId || !Number.isFinite(amount) || amount <= 0) {
+    alert('固定費と金額を入力してください')
+    return
+  }
+
+  const cost = currentMonthlyFixedCosts.find(
+    (c) => c.id === fixedAddForm.fixedCostId
+  )
+
+  if (!cost) return
+
+  const now = new Date().toISOString()
+  const roundedAmount = Math.round(amount)
+
+  const newTx = {
+    id: generateId(),
+    title: cost.name,
+    amount: roundedAmount,
+    category: cost.category,
+    isSpecial: true,
+    isFixedDeposit: true,
+    fixedCostId: cost.id,
+    date: todayString(),
+    createdAt: now,
+    updatedAt: now,
+  }
+
+  setData((prev) => {
+    const currentList =
+      prev.monthlyFixedCosts?.[currentMonthKey] ||
+      buildMonthlyFixedCosts(prev, currentMonthKey)
+
+    const nextList = currentList.map((item) => {
+      if (item.id !== cost.id) return item
+
+      const nextAmount = Number(item.amount || 0)
+      const nextMonthlyDeposit =
+        Number(item.monthlyDeposit || 0) + roundedAmount
+      const nextCarryover = Number(item.carryover || 0)
+
       return {
-        ...prev,
-        transactions: [newTx, ...prev.transactions],
-        fixedCostAdjustments: {
-          ...(prev.fixedCostAdjustments || {}),
-          [currentMonthKey]: {
-            ...(prev.fixedCostAdjustments?.[currentMonthKey] || {}),
-            [cost.id]: {
-              ...adj,
-              amount: nextAmount,
-              carryover: currentCarryover,
-              totalAvailable: nextAmount + currentCarryover,
-            },
-          },
-        },
+        ...item,
+        monthlyDeposit: nextMonthlyDeposit,
+        totalAvailable:
+          nextAmount + nextMonthlyDeposit + nextCarryover,
+        updatedAt: now,
       }
     })
-    setShowFixedAddModal(false)
-    setFixedAddForm({ fixedCostId: '', amount: '' })
-  }
+
+    return {
+      ...prev,
+      transactions: [newTx, ...prev.transactions],
+      monthlyFixedCosts: {
+        ...(prev.monthlyFixedCosts || {}),
+        [currentMonthKey]: nextList,
+      },
+    }
+  })
+
+  setShowFixedAddModal(false)
+  setFixedAddForm({ fixedCostId: '', amount: '' })
+}
 
   const addCustomCategory = (formType = 'expense') => {
     const name = newCategoryName.trim()
@@ -1327,6 +1424,14 @@ currentMonthlyFixedCosts.forEach((cost) => {
     onChange={setViewDate}
     variant="dark"
   />
+
+<button
+  onClick={copyPreviousMonthFixedCosts}
+  className="mb-4 w-full rounded-2xl bg-white py-3 text-sm font-extrabold text-indigo-500 shadow-sm"
+>
+  前月の固定費をコピー
+</button>
+
 </div>
 
         <div className="rounded-3xl border border-white/20 bg-white/15 p-6 shadow-inner backdrop-blur">
@@ -1450,6 +1555,13 @@ style={{
       </div>
 
       <MonthNavigator date={viewDate} onChange={setViewDate} />
+
+      <button
+  onClick={resetMonthlyFixedCostsFromJuly2026}
+  className="mb-4 w-full rounded-2xl bg-red-50 py-3 text-sm font-extrabold text-red-500 shadow-sm"
+>
+  2026年7月以降の固定費データをリセット
+</button>
 
       <div className="mb-6 rounded-3xl bg-white p-6 text-center shadow-sm">
         <p className="text-sm font-bold text-gray-400">今月の固定費入金合計</p>
