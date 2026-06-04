@@ -663,6 +663,42 @@ const prevMonthlyFixedCosts = useMemo(() => {
   return getMonthlyFixedCosts(prevMonthKey)
 }, [data.monthlyFixedCosts, data.fixedCosts, prevMonthKey])
 
+const updateMonthlyFixedCost = (monthKey, costId, fields) => {
+  setData((prev) => {
+    const currentList =
+      prev.monthlyFixedCosts?.[monthKey] ||
+      getMonthlyFixedCosts(monthKey)
+
+    const nextList = currentList.map((cost) => {
+      if (cost.id !== costId) return cost
+
+      const nextCost = {
+        ...cost,
+        ...fields,
+        updatedAt: new Date().toISOString(),
+      }
+
+      const nextAmount = Number(nextCost.amount || 0)
+      const nextCarryover = Number(nextCost.carryover || 0)
+
+      return {
+        ...nextCost,
+        amount: nextAmount,
+        carryover: nextCarryover,
+        totalAvailable: nextAmount + nextCarryover,
+      }
+    })
+
+    return {
+      ...prev,
+      monthlyFixedCosts: {
+        ...(prev.monthlyFixedCosts || {}),
+        [monthKey]: nextList,
+      },
+    }
+  })
+}
+
 
   const monthlyTransactions = useMemo(() => {
     return data.transactions.filter((tx) => tx.date?.startsWith(currentMonthKey))
@@ -1411,26 +1447,8 @@ style={{
                 const carryover = Number(adj?.carryover || 0)
                 const totalAvailable = amount + carryover
                 const updateAdj = (fields) => {
-                  setData((prev) => {
-                    const prevAdj = prev.fixedCostAdjustments?.[currentMonthKey]?.[cost.id] || {}
-                    const newAdj = { ...prevAdj, ...fields }
-                    const newAmount = newAdj.amount !== undefined ? Number(newAdj.amount) : Number(cost.amount || 0)
-                    const newCarryover = Number(newAdj.carryover || 0)
-                    return {
-                      ...prev,
-                      fixedCostAdjustments: {
-                        ...(prev.fixedCostAdjustments || {}),
-                        [currentMonthKey]: {
-                          ...(prev.fixedCostAdjustments?.[currentMonthKey] || {}),
-                          [cost.id]: {
-                            ...newAdj,
-                            totalAvailable: newAmount + newCarryover,
-                          },
-                        },
-                      },
-                    }
-                  })
-                }
+  updateMonthlyFixedCost(currentMonthKey, cost.id, fields)
+}
                 return (
                   <>
                     <div className="flex items-start justify-between gap-3">
