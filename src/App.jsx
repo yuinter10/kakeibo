@@ -1004,22 +1004,58 @@ const updateExpenseStatusRule = (index, fields) => {
     }
 
     if (editingFixedCost) {
-      setData((prev) => ({
-        ...prev,
-        fixedCosts: prev.fixedCosts.map((cost) =>
-          cost.id === editingFixedCost.id
-            ? {
-                ...cost,
-                name: fixedForm.name.trim(),
-                amount: Math.round(amount),
-                category: fixedForm.category,
-                day: Math.round(day),
-                updatedAt: new Date().toISOString(),
-              }
-            : cost
-        ),
-      }))
-    } else {
+  setData((prev) => {
+    const now = new Date().toISOString()
+    const nextAmount = Math.round(amount)
+    const nextName = fixedForm.name.trim()
+    const nextCategory = fixedForm.category
+    const nextDay = Math.round(day)
+
+    const nextFixedCosts = prev.fixedCosts.map((cost) =>
+      cost.id === editingFixedCost.id
+        ? {
+            ...cost,
+            name: nextName,
+            category: nextCategory,
+            day: nextDay,
+            updatedAt: now,
+            // amount は変更しない
+            // 過去月に影響させないため
+          }
+        : cost
+    )
+
+    const nextAdjustments = { ...(prev.fixedCostAdjustments || {}) }
+
+    // 今月から36ヶ月先まで、月別調整として新しい基本固定費を保存する
+    // 必要になったらさらに先の月でも編集すればよい
+    for (let i = 0; i < 36; i += 1) {
+      const targetDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + i, 1)
+      const targetMonthKey = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`
+
+      const prevMonthAdjustments = nextAdjustments[targetMonthKey] || {}
+      const prevCostAdjustment = prevMonthAdjustments[editingFixedCost.id] || {}
+      const carryover = Number(prevCostAdjustment.carryover || 0)
+
+      nextAdjustments[targetMonthKey] = {
+        ...prevMonthAdjustments,
+        [editingFixedCost.id]: {
+          ...prevCostAdjustment,
+          amount: nextAmount,
+          carryover,
+          totalAvailable: nextAmount + carryover,
+        },
+      }
+    }
+
+    return {
+      ...prev,
+      fixedCosts: nextFixedCosts,
+      fixedCostAdjustments: nextAdjustments,
+    }
+  })
+} else {
+
       const next = {
         id: generateId(),
         name: fixedForm.name.trim(),
