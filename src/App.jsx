@@ -1528,7 +1528,7 @@ style={{
 
       <div className="mt-8 px-6">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-extrabold text-gray-800">最近の記録</h2>
+          <h2 className="text-lg font-extrabold text-gray-800">今月の記録</h2>
           <button
             onClick={() => setActiveTab('transactions')}
             className="text-sm font-bold text-indigo-500"
