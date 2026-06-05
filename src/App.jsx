@@ -1538,8 +1538,8 @@ style={{
         </div>
 
         <div className="space-y-3">
-          {data.transactions.slice(0, 5).length ? (
-            data.transactions.slice(0, 5).map((tx) => (
+          {monthlyTransactions.slice(0, 5).length ? (
+  monthlyTransactions.slice(0, 5).map((tx) => (
               <TransactionCard key={tx.id} tx={tx} onEdit={openEditTransaction} onDelete={deleteTransaction} customCats={data.customCategories} showTotal={false} categoryOverrides={data.categoryOverrides} />
             ))
           ) : (
