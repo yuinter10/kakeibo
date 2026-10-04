@@ -50,8 +50,10 @@ import {
 } from 'lucide-react'
 
 const STORAGE_KEY = 'kakeibo-pwa-data'
+const CORRUPTED_BACKUP_KEY = `${STORAGE_KEY}-corrupted-backup`
 const ACTIVE_TAB_KEY = 'kakeibo-pwa-active-tab'
 const SCHEMA_VERSION = 1
+let lastLoadHadCorruption = false
 
 const DEFAULT_EXPENSE_STATUS_RULES = [
   { sign: '-', amount: '10000', label: 'かなり節約できてる' },
@@ -271,6 +273,10 @@ monthlyFixedCosts: {},
 categoryOverrides: {},
 }
 
+const isPlainObject = (value) => {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
 function loadData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -285,22 +291,50 @@ function loadData() {
       ...initialData,
       ...parsed,
       schemaVersion: parsed.schemaVersion ?? SCHEMA_VERSION,
-      transactions: parsed.transactions ?? initialData.transactions,
-      fixedCosts: parsed.fixedCosts ?? initialData.fixedCosts,
-      monthlyBudget: parsed.monthlyBudget ?? initialData.monthlyBudget,
+      transactions: Array.isArray(parsed.transactions)
+        ? parsed.transactions
+        : initialData.transactions,
+      fixedCosts: Array.isArray(parsed.fixedCosts)
+        ? parsed.fixedCosts
+        : initialData.fixedCosts,
+      monthlyBudget:
+        typeof parsed.monthlyBudget === 'number'
+          ? parsed.monthlyBudget
+          : initialData.monthlyBudget,
       appSettings: {
-  ...initialData.appSettings,
-  ...(parsed.appSettings ?? {}),
-  expenseStatusRules:
-    parsed.appSettings?.expenseStatusRules ?? DEFAULT_EXPENSE_STATUS_RULES,
-},
-      customCategories: parsed.customCategories ?? [],
-      monthlyGoals: parsed.monthlyGoals ?? {},
-      fixedCostAdjustments: parsed.fixedCostAdjustments ?? {},
-monthlyFixedCosts: parsed.monthlyFixedCosts ?? {},
-categoryOverrides: parsed.categoryOverrides ?? {},
+        ...initialData.appSettings,
+        ...(isPlainObject(parsed.appSettings) ? parsed.appSettings : {}),
+        expenseStatusRules: Array.isArray(parsed.appSettings?.expenseStatusRules)
+          ? parsed.appSettings.expenseStatusRules
+          : DEFAULT_EXPENSE_STATUS_RULES,
+      },
+      customCategories: Array.isArray(parsed.customCategories)
+        ? parsed.customCategories
+        : [],
+      monthlyGoals: isPlainObject(parsed.monthlyGoals)
+        ? parsed.monthlyGoals
+        : {},
+      fixedCostAdjustments: isPlainObject(parsed.fixedCostAdjustments)
+        ? parsed.fixedCostAdjustments
+        : {},
+      monthlyFixedCosts: isPlainObject(parsed.monthlyFixedCosts)
+        ? parsed.monthlyFixedCosts
+        : {},
+      categoryOverrides: isPlainObject(parsed.categoryOverrides)
+        ? parsed.categoryOverrides
+        : {},
     }
   } catch {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY)
+      if (raw !== null && typeof raw === 'string') {
+        localStorage.setItem(CORRUPTED_BACKUP_KEY, raw)
+      }
+    } catch {
+      // storage is unavailable; leave the original data alone
+    }
+
+    lastLoadHadCorruption = true
     return initialData
   }
 }
@@ -609,14 +643,19 @@ export default function App() {
     date: todayString(),
   })
 
-  const [fixedForm, setFixedForm] = useState({
-    name: '',
-    amount: '',
-    category: 'housing',
-    day: '1',
-  })
+const [fixedForm, setFixedForm] = useState({
+  name: '',
+  amount: '',
+  category: 'housing',
+  day: '1',
+})
 
   useEffect(() => {
+    if (lastLoadHadCorruption) {
+      lastLoadHadCorruption = false
+      return
+    }
+
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
   }, [data])
 
@@ -637,6 +676,7 @@ const normalizeFixedCostForMonth = (cost) => {
   const amount = Number(cost.amount || 0)
   const monthlyDeposit = Number(cost.monthlyDeposit || 0)
   const carryover = Number(cost.carryover || 0)
+  const spentAmount = Number(cost.spentAmount || 0)
 
   return {
     id: cost.id,
@@ -644,6 +684,7 @@ const normalizeFixedCostForMonth = (cost) => {
     amount,
     monthlyDeposit,
     carryover,
+    spentAmount,
     totalAvailable: amount + monthlyDeposit + carryover,
     category: cost.category || 'housing',
     day: Number(cost.day || 1),
@@ -659,11 +700,12 @@ const buildMonthlyFixedCosts = (sourceData, monthKey) => {
     return existing
   }
 
-  const hasAnyMonthlyFixedCosts =
-    Object.keys(sourceData.monthlyFixedCosts || {}).length > 0
+  const legacyFixedCosts = Array.isArray(sourceData.fixedCosts)
+    ? sourceData.fixedCosts
+    : []
 
-  if (!hasAnyMonthlyFixedCosts) {
-    return sourceData.fixedCosts.map(normalizeFixedCostForMonth)
+  if (legacyFixedCosts.length > 0) {
+    return legacyFixedCosts.map(normalizeFixedCostForMonth)
   }
 
   return []
@@ -713,17 +755,45 @@ const updateMonthlyFixedCost = (monthKey, costId, fields) => {
       }
 
       const nextAmount = Number(nextCost.amount || 0)
-const nextMonthlyDeposit = Number(nextCost.monthlyDeposit || 0)
-const nextCarryover = Number(nextCost.carryover || 0)
+      const nextMonthlyDeposit = Number(nextCost.monthlyDeposit || 0)
+      const nextCarryover = Number(nextCost.carryover || 0)
+      const isCopiedFromPrevMonth = !!nextCost.copiedFromPreviousMonth
 
-return {
-  ...nextCost,
-  amount: nextAmount,
-  monthlyDeposit: nextMonthlyDeposit,
-  carryover: nextCarryover,
-  totalAvailable:
-    nextAmount + nextMonthlyDeposit + nextCarryover,
-}
+      if (isCopiedFromPrevMonth) {
+        const isCarryoverChange = Object.prototype.hasOwnProperty.call(fields, 'carryover')
+        const isMonthlyDepositChange = Object.prototype.hasOwnProperty.call(fields, 'monthlyDeposit')
+
+        if (isCarryoverChange && !isMonthlyDepositChange) {
+          const normalizedMonthlyDeposit = Math.max(0, nextAmount - nextCarryover)
+          const priorManualValue = Number(cost.monthlyDeposit || 0)
+          const shouldKeepManualValue = priorManualValue !== Math.max(0, Number(cost.amount || 0) - Number(cost.carryover || 0))
+
+          return {
+            ...nextCost,
+            amount: nextAmount,
+            monthlyDeposit: shouldKeepManualValue ? priorManualValue : normalizedMonthlyDeposit,
+            carryover: nextCarryover,
+            totalAvailable: nextCarryover + (shouldKeepManualValue ? priorManualValue : normalizedMonthlyDeposit),
+          }
+        }
+
+        return {
+          ...nextCost,
+          amount: nextAmount,
+          monthlyDeposit: nextMonthlyDeposit,
+          carryover: nextCarryover,
+          totalAvailable: nextCarryover + nextMonthlyDeposit,
+        }
+      }
+
+      return {
+        ...nextCost,
+        amount: nextAmount,
+        monthlyDeposit: nextMonthlyDeposit,
+        carryover: nextCarryover,
+        totalAvailable:
+          nextAmount + nextMonthlyDeposit + nextCarryover,
+      }
     })
 
     return {
@@ -749,11 +819,7 @@ return {
 
   const fixedTotal = useMemo(() => {
   return currentMonthlyFixedCosts.reduce((sum, cost) => {
-    return (
-      sum +
-      Number(cost.amount || 0) +
-      Number(cost.monthlyDeposit || 0)
-    )
+    return sum + Number(cost.totalAvailable ?? (Number(cost.amount || 0) + Number(cost.monthlyDeposit || 0) + Number(cost.carryover || 0)))
   }, 0)
 }, [currentMonthlyFixedCosts])
 
@@ -771,11 +837,7 @@ return {
 
   const prevFixedTotal = useMemo(() => {
   return prevMonthlyFixedCosts.reduce((sum, cost) => {
-    return (
-      sum +
-      Number(cost.amount || 0) +
-      Number(cost.monthlyDeposit || 0)
-    )
+    return sum + Number(cost.totalAvailable ?? (Number(cost.amount || 0) + Number(cost.monthlyDeposit || 0) + Number(cost.carryover || 0)))
   }, 0)
 }, [prevMonthlyFixedCosts])
 
@@ -905,10 +967,7 @@ const updateExpenseStatusRule = (index, fields) => {
 
   // 固定費を加算
 currentMonthlyFixedCosts.forEach((cost) => {
-  const amount =
-    Number(cost.amount || 0) +
-    Number(cost.monthlyDeposit || 0)
-
+  const amount = Number(cost.totalAvailable ?? (Number(cost.amount || 0) + Number(cost.monthlyDeposit || 0) + Number(cost.carryover || 0)))
   const key = cost.category || 'food'
   map[key] = (map[key] || 0) + amount
 })
@@ -1117,26 +1176,30 @@ return {
 }
 
   const openAddFixedCost = () => {
-    setEditingFixedCost(null)
-    setFixedForm({
-      name: '',
-      amount: '',
-      category: 'housing',
-      day: '1',
-    })
-    setShowFixedModal(true)
-  }
+  setEditingFixedCost(null)
 
-  const openEditFixedCost = (cost) => {
-    setEditingFixedCost(cost)
-    setFixedForm({
-      name: cost.name,
-      amount: String(cost.amount),
-      category: cost.category,
-      day: String(cost.day),
-    })
-    setShowFixedModal(true)
-  }
+  setFixedForm({
+    name: '',
+    amount: '',
+    category: 'housing',
+    day: '1',
+  })
+
+  setShowFixedModal(true)
+}
+
+const openEditFixedCost = (cost) => {
+  setEditingFixedCost(cost)
+
+  setFixedForm({
+    name: cost.name,
+    amount: String(cost.amount),
+    category: cost.category,
+    day: String(cost.day),
+  })
+
+  setShowFixedModal(true)
+}
 
   const saveFixedCost = () => {
     const amount = Number(fixedForm.amount)
@@ -1163,14 +1226,15 @@ return {
   })
 
 } else {
-  const next = {
+const next = {
   id: generateId(),
   name: fixedForm.name.trim(),
   amount: Math.round(amount),
-  monthlyDeposit: 0,
+  monthlyDeposit: Math.round(amount),
   category: fixedForm.category,
   day: Math.round(day),
   carryover: 0,
+  spentAmount: 0,
   totalAvailable: Math.round(amount),
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
@@ -1204,20 +1268,20 @@ const copyPreviousMonthFixedCosts = () => {
   }
 
   setData((prev) => {
-    const prevList =
-      prev.monthlyFixedCosts?.[prevMonthKey] ||
-      prev.fixedCosts.map(normalizeFixedCostForMonth)
+    const prevList = prev.monthlyFixedCosts?.[prevMonthKey] || []
 
     const nextList = prevList.map((cost) => {
       const amount = Number(cost.amount || 0)
-      const carryover = Number(cost.carryover || 0)
+      const monthlyDeposit = Math.max(0, amount)
 
       return {
         ...cost,
         amount,
-        monthlyDeposit: 0,
-        carryover,
-        totalAvailable: amount + carryover,
+        monthlyDeposit,
+        carryover: 0,
+        copiedFromPreviousMonth: true,
+        spentAmount: 0,
+        totalAvailable: amount,
         updatedAt: new Date().toISOString(),
       }
     })
@@ -1303,7 +1367,7 @@ const clearCurrentMonthFixedCosts = () => {
 
 
 
-  const saveFixedAdd = () => {
+  const addFixedDeposit = () => {
   const amount = Number(fixedAddForm.amount)
 
   if (!fixedAddForm.fixedCostId || !Number.isFinite(amount) || amount <= 0) {
@@ -1369,6 +1433,8 @@ const clearCurrentMonthFixedCosts = () => {
   setFixedAddForm({ fixedCostId: '', amount: '' })
 }
 
+  const saveFixedAdd = addFixedDeposit
+
   const addCustomCategory = (formType = 'expense') => {
     const name = newCategoryName.trim()
     if (!name) return
@@ -1417,19 +1483,34 @@ const clearCurrentMonthFixedCosts = () => {
   }
 
   const deleteCustomCategory = (id) => {
-    if (!confirm('このカテゴリを削除しますか？\n使用中の支出・固定費は「食費」に変更されます。')) return
-    setData((prev) => ({
+  if (!confirm('このカテゴリを削除しますか？\n使用中の支出・固定費は「食費」に変更されます。')) return
+
+  setData((prev) => {
+    const nextMonthlyFixedCosts = Object.fromEntries(
+      Object.entries(prev.monthlyFixedCosts || {}).map(
+        ([monthKey, costs]) => [
+          monthKey,
+          (costs || []).map((cost) =>
+            cost.category === id ? { ...cost, category: 'food' } : cost
+          ),
+        ]
+      )
+    )
+
+    return {
       ...prev,
-      customCategories: (prev.customCategories || []).filter((c) => c.id !== id),
+      customCategories: (prev.customCategories || []).filter(
+        (c) => c.id !== id
+      ),
       transactions: prev.transactions.map((tx) =>
         tx.category === id ? { ...tx, category: 'food' } : tx
       ),
-      fixedCosts: prev.fixedCosts.map((cost) =>
-        cost.category === id ? { ...cost, category: 'food' } : cost
-      ),
-    }))
-    if (editingCustomCatId === id) setEditingCustomCatId(null)
-  }
+      monthlyFixedCosts: nextMonthlyFixedCosts,
+    }
+  })
+
+  if (editingCustomCatId === id) setEditingCustomCatId(null)
+}
 
   const homeTab = () => (
     <div>
@@ -1596,7 +1677,7 @@ style={{
   const carryover = Number(cost.carryover || 0)
 
   const totalAvailable =
-    amount + monthlyDeposit + carryover
+    Number(cost.totalAvailable ?? (amount + monthlyDeposit + carryover))
 
   const updateAdj = (fields) => {
     updateMonthlyFixedCost(currentMonthKey, cost.id, fields)
@@ -1634,48 +1715,52 @@ style={{
                         return (
                           <>
                             <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2">
-                              <p className="w-16 shrink-0 text-xs text-gray-400">今月入金</p>
-                              <input
-                                type="number"
-                                min="0"
-                                step={1000}
-                                placeholder={String(cost.amount || 0)}
-                                value={
-  isEditingAmount
-    ? editingFixedAmountInputs[amountInputKey]
-    : (monthlyDeposit || '')
-}
-                                onChange={(e) => {
-                                  const nextValue = e.target.value.replace(/[^\d]/g, '')
-                                  setEditingFixedAmountInputs((prev) => ({
-                                    ...prev,
-                                    [amountInputKey]: nextValue,
-                                  }))
-                                }}
-                                onFocus={() => {
-                                  setEditingFixedAmountInputs((prev) => ({
-                                    ...prev,
-                                    [amountInputKey]: '',
-                                  }))
-                                }}
-                                onBlur={() => {
-                                  const inputValue = editingFixedAmountInputs[amountInputKey]
-                                  if (inputValue !== undefined && inputValue !== '') {
-                                    const numVal = Number(inputValue)
-                                    if (Number.isFinite(numVal) && numVal >= 0) {
-                                      updateAdj({ monthlyDeposit: numVal })
-                                    }
-                                  }
-                                  setEditingFixedAmountInputs((prev) => {
-                                    const next = { ...prev }
-                                    delete next[amountInputKey]
-                                    return next
-                                  })
-                                }}
-                                className="w-full bg-transparent text-right text-xs font-bold text-gray-700 outline-none placeholder:text-gray-400"
-                              />
-                              <p className="shrink-0 text-xs text-gray-400">円</p>
-                            </div>
+  <p className="w-16 shrink-0 text-xs text-gray-400">今月入金</p>
+  <input
+    type="number"
+    min="0"
+    step={1000}
+    placeholder={String(cost.amount || 0)}
+    value={
+      isEditingAmount
+        ? editingFixedAmountInputs[amountInputKey]
+        : (monthlyDeposit || '')
+    }
+    onChange={(e) => {
+      const nextValue = e.target.value.replace(/[^\d]/g, '')
+      setEditingFixedAmountInputs((prev) => ({
+        ...prev,
+        [amountInputKey]: nextValue,
+      }))
+    }}
+    onFocus={() => {
+      setEditingFixedAmountInputs((prev) => ({
+        ...prev,
+        [amountInputKey]: '',
+      }))
+    }}
+    onBlur={() => {
+      const inputValue = editingFixedAmountInputs[amountInputKey]
+      if (inputValue !== undefined && inputValue !== '') {
+        const numVal = Number(inputValue)
+        if (Number.isFinite(numVal) && numVal >= 0) {
+          updateAdj({ monthlyDeposit: numVal })
+        }
+      }
+      setEditingFixedAmountInputs((prev) => {
+        const next = { ...prev }
+        delete next[amountInputKey]
+        return next
+      })
+    }}
+    className="w-full bg-transparent text-right text-xs font-bold text-gray-700 outline-none placeholder:text-gray-400"
+  />
+  <p className="shrink-0 text-xs text-gray-400">円</p>
+</div>
+
+<p className="px-1 text-right text-[11px] text-gray-400">
+  設定額：{formatMoney(Number(amount || 0))}
+</p>
 
                             <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2">
                               <p className="w-16 shrink-0 text-xs text-gray-400">前月残高</p>
@@ -2487,69 +2572,99 @@ style={{
     </Modal>
   )
 
-  const fixedAddModal = () => (
-    <Modal onClose={() => setShowFixedAddModal(false)}>
-      <div className="mb-5 flex items-center justify-between">
-        <h2 className="text-xl font-extrabold text-gray-800">固定費を追加</h2>
-        <button onClick={() => setShowFixedAddModal(false)} className="rounded-full bg-gray-100 p-2">
-          <X className="h-5 w-5 text-gray-500" />
-        </button>
-      </div>
-      {data.fixedCosts.length === 0 ? (
-        <p className="py-6 text-center text-sm text-gray-400">固定費が登録されていません</p>
-      ) : (
-        <>
-          <label className="mb-4 block">
-            <span className="mb-2 block text-sm font-bold text-gray-600">固定費を選択</span>
-            <select
-              value={fixedAddForm.fixedCostId}
-              onChange={(e) => setFixedAddForm((prev) => ({ ...prev, fixedCostId: e.target.value }))}
-              className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              {currentMonthlyFixedCosts.map((cost) => (
-                <option key={cost.id} value={cost.id}>
-                  {cost.name}（基本 {formatMoney(cost.amount)}）
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="mb-4 block">
-            <span className="mb-2 block text-sm font-bold text-gray-600">追加する金額</span>
-            <input
-              type="number"
-              step={1000}
-              min={1}
-              value={fixedAddForm.amount}
-              onChange={(e) => setFixedAddForm((prev) => ({ ...prev, amount: e.target.value }))}
-              placeholder="例：5000"
-              className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-indigo-500"
-            />
-          </label>
-          {fixedAddForm.fixedCostId && (() => {
-            const cost = data.fixedCosts.find((c) => c.id === fixedAddForm.fixedCostId)
-            if (!cost) return null
-            const current =
-  Number(cost.amount || 0) +
-  Number(cost.monthlyDeposit || 0)
+    const fixedAddModal = () => (
+  <Modal onClose={() => setShowFixedAddModal(false)}>
+    <div className="mb-5 flex items-center justify-between">
+      <h2 className="text-xl font-extrabold text-gray-800">固定費を追加</h2>
+      <button
+        onClick={() => setShowFixedAddModal(false)}
+        className="rounded-full bg-gray-100 p-2"
+      >
+        <X className="h-5 w-5 text-gray-500" />
+      </button>
+    </div>
 
-const add = Number(fixedAddForm.amount) || 0
+    {currentMonthlyFixedCosts.length === 0 ? (
+  <p className="py-6 text-center text-sm text-gray-400">
+    固定費が登録されていません
+  </p>
+) : (
+      <>
+        <label className="mb-4 block">
+          <span className="mb-2 block text-sm font-bold text-gray-600">
+            固定費を選択
+          </span>
+
+          <select
+            value={fixedAddForm.fixedCostId}
+            onChange={(e) =>
+              setFixedAddForm((prev) => ({
+                ...prev,
+                fixedCostId: e.target.value,
+              }))
+            }
+            className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            {currentMonthlyFixedCosts.map((cost) => (
+              <option key={cost.id} value={cost.id}>
+                {cost.name}（基本 {formatMoney(cost.amount)}）
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="mb-4 block">
+          <span className="mb-2 block text-sm font-bold text-gray-600">
+            追加する金額
+          </span>
+
+          <input
+            type="number"
+            step={1000}
+            min={1}
+            value={fixedAddForm.amount}
+            onChange={(e) =>
+              setFixedAddForm((prev) => ({
+                ...prev,
+                amount: e.target.value,
+              }))
+            }
+            placeholder="例：5000"
+            className="w-full rounded-2xl border border-gray-100 bg-gray-50 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+        </label>
+
+        {fixedAddForm.fixedCostId &&
+          (() => {
+            const cost = currentMonthlyFixedCosts.find(
+  (c) => c.id === fixedAddForm.fixedCostId
+)
+
+            if (!cost) return null
+
+            const current =
+              Number(cost.amount || 0) +
+              Number(cost.monthlyDeposit || 0)
+
+            const add = Number(fixedAddForm.amount) || 0
+
             return (
               <p className="mb-4 rounded-xl bg-purple-50 px-4 py-2 text-xs font-bold text-purple-600">
                 現在 {formatMoney(current)} → 追加後 {formatMoney(current + add)}
               </p>
             )
           })()}
-          <button
-            onClick={saveFixedAdd}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-500 py-4 text-lg font-extrabold text-white shadow-lg shadow-indigo-500/30"
-          >
-            <Check className="h-5 w-5" />
-            追加する
-          </button>
-        </>
-      )}
-    </Modal>
-  )
+
+        <button
+          onClick={addFixedDeposit}
+          className="w-full rounded-2xl bg-indigo-600 py-3 font-extrabold text-white shadow-sm"
+        >
+          固定費入金を追加
+        </button>
+      </>
+    )}
+  </Modal>
+)
 
   const bottomNav = () => {
   const items = [
