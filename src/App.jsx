@@ -915,9 +915,8 @@ const currentExpenseStatus = useMemo(() => {
   const sortedRules = [...expenseStatusRules]
     .filter((rule) => String(rule.label || '').trim())
     .map((rule) => {
-      const sign = rule.sign === '-' ? '-' : '+'
       const amount = Number(rule.amount || 0)
-      const threshold = sign === '-' ? -amount : amount
+      const threshold = Number.isFinite(amount) ? Math.abs(amount) : Number.NaN
 
       return {
         ...rule,
@@ -928,11 +927,11 @@ const currentExpenseStatus = useMemo(() => {
     .sort((a, b) => a.threshold - b.threshold)
 
   const matched = sortedRules
-    .filter((rule) => expenseStatusAmount >= rule.threshold)
+    .filter((rule) => totalExpense >= rule.threshold)
     .at(-1)
 
   return matched?.label?.trim() || ''
-}, [expenseStatusRules, expenseStatusAmount])
+}, [expenseStatusRules, totalExpense])
 
 const updateExpenseStatusRule = (index, fields) => {
   setData((prev) => {
@@ -2100,17 +2099,6 @@ style={{
     {expenseStatusRules.map((rule, index) => (
       <div key={index} className="rounded-2xl bg-gray-50 p-3">
   <div className="mb-2 flex items-center gap-2">
-    <select
-      value={rule.sign ?? '+'}
-      onChange={(e) =>
-        updateExpenseStatusRule(index, { sign: e.target.value })
-      }
-      className="w-16 rounded-xl border border-gray-100 bg-white px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-400"
-    >
-      <option value="+">＋</option>
-      <option value="-">−</option>
-    </select>
-
     <input
       type="number"
       value={rule.amount ?? ''}
