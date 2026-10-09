@@ -906,7 +906,7 @@ const currentBaseFixedTotal = useMemo(() => {
   )
 }, [currentMonthlyFixedCosts])
 
-const expenseStatusAmount = totalExpense - currentBaseFixedTotal
+const expenseStatusAmount = totalExpense
 
 const expenseStatusRules =
   data.appSettings?.expenseStatusRules ?? DEFAULT_EXPENSE_STATUS_RULES
