@@ -277,6 +277,45 @@ const isPlainObject = (value) => {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
 }
 
+const isFutureMonthKey = (monthKey) => {
+  if (typeof monthKey !== 'string' || !/^\d{4}-\d{2}$/.test(monthKey)) {
+    return false
+  }
+
+  const [year, month] = monthKey.split('-').map(Number)
+  const target = new Date(year, month - 1, 1)
+  const today = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+
+  return target.getTime() > today.getTime()
+}
+
+const sanitizeMonthlyFixedCosts = (monthlyFixedCosts) => {
+  if (!isPlainObject(monthlyFixedCosts)) {
+    return {}
+  }
+
+  return Object.fromEntries(
+    Object.entries(monthlyFixedCosts)
+      .filter(([monthKey, value]) => {
+        if (!isFutureMonthKey(monthKey)) {
+          return true
+        }
+
+        return Array.isArray(value) && value.some((cost) => cost?.copiedFromPreviousMonth === true)
+      })
+      .map(([monthKey, value]) => {
+        if (!isFutureMonthKey(monthKey) || !Array.isArray(value)) {
+          return [monthKey, value]
+        }
+
+        return [
+          monthKey,
+          value.filter((cost) => cost?.copiedFromPreviousMonth === true),
+        ]
+      })
+  )
+}
+
 function loadData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
@@ -317,9 +356,7 @@ function loadData() {
       fixedCostAdjustments: isPlainObject(parsed.fixedCostAdjustments)
         ? parsed.fixedCostAdjustments
         : {},
-      monthlyFixedCosts: isPlainObject(parsed.monthlyFixedCosts)
-        ? parsed.monthlyFixedCosts
-        : {},
+      monthlyFixedCosts: sanitizeMonthlyFixedCosts(parsed.monthlyFixedCosts),
       categoryOverrides: isPlainObject(parsed.categoryOverrides)
         ? parsed.categoryOverrides
         : {},
@@ -700,6 +737,10 @@ const buildMonthlyFixedCosts = (sourceData, monthKey) => {
     return existing
   }
 
+  if (isFutureMonthKey(monthKey)) {
+    return []
+  }
+
   const legacyFixedCosts = Array.isArray(sourceData.fixedCosts)
     ? sourceData.fixedCosts
     : []
@@ -724,6 +765,10 @@ const prevMonthlyFixedCosts = useMemo(() => {
 }, [data.monthlyFixedCosts, data.fixedCosts, prevMonthKey])
 
 useEffect(() => {
+  if (isFutureMonthKey(currentMonthKey)) {
+    return
+  }
+
   setData((prev) => {
     if (Array.isArray(prev.monthlyFixedCosts?.[currentMonthKey])) {
       return prev
